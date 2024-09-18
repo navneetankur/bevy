@@ -1,6 +1,5 @@
 use crate as bevy_ecs;
 use super::*;
-use bevy_ecs_macros::Event;
 #[cfg(feature = "bevy_reflect")]
 use bevy_reflect::Reflect;
 /// Internal components used by bevy with a fixed component id.
@@ -17,28 +16,28 @@ pub const ON_REMOVE: ComponentId = ComponentId::new(3);
 
 /// Trigger emitted when a component is added to an entity. See [`crate::component::ComponentHooks::on_add`]
 /// for more information.
-#[derive(Event, Debug)]
+#[derive(Component, Debug)]
 #[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
 #[cfg_attr(feature = "bevy_reflect", reflect(Debug))]
 pub struct OnAdd;
 
 /// Trigger emitted when a component is inserted onto an entity. See [`crate::component::ComponentHooks::on_insert`]
 /// for more information.
-#[derive(Event, Debug)]
+#[derive(Component, Debug)]
 #[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
 #[cfg_attr(feature = "bevy_reflect", reflect(Debug))]
 pub struct OnInsert;
 
 /// Trigger emitted when a component is replaced on an entity. See [`crate::component::ComponentHooks::on_replace`]
 /// for more information.
-#[derive(Event, Debug)]
+#[derive(Component, Debug)]
 #[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
 #[cfg_attr(feature = "bevy_reflect", reflect(Debug))]
 pub struct OnReplace;
 
 /// Trigger emitted when a component is removed from an entity. See [`crate::component::ComponentHooks::on_remove`]
 /// for more information.
-#[derive(Event, Debug)]
+#[derive(Component, Debug)]
 #[cfg_attr(feature = "bevy_reflect", derive(Reflect))]
 #[cfg_attr(feature = "bevy_reflect", reflect(Debug))]
 pub struct OnRemove;
