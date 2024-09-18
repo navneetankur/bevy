@@ -1,3 +1,4 @@
+pub mod boxyexclusivesystem;
 use crate::{
     archetype::ArchetypeComponentId,
     component::{ComponentId, Tick},

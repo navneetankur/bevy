@@ -1,6 +1,6 @@
 use core::any::TypeId;
 
-use crate::{system::{IntoSystem, System}, world::Mut};
+use crate::{system::{IntoSystem, System, SystemParamFunction}, world::Mut};
 use bevy_utils::TypeIdMap;
 use smallvec::SmallVec;
 

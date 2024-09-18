@@ -1,3 +1,4 @@
+pub mod boxysystem;
 use crate::{
     archetype::{ArchetypeComponentId, ArchetypeGeneration},
     component::{ComponentId, Tick},
