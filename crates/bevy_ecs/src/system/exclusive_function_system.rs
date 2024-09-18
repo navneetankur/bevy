@@ -4,7 +4,7 @@ use crate::{
     component::{ComponentId, Tick},
     query::Access,
     system::{
-        check_system_change_tick, ExclusiveSystemParam, ExclusiveSystemParamItem, In, IntoSystem,
+        check_system_change_tick, ExclusiveSystemParam, ExclusiveSystemParamItem, IntoSystem,
         System, SystemMeta,
     },
     world::{unsafe_world_cell::UnsafeWorldCell, World},

@@ -1,6 +1,8 @@
 use core::any::TypeId;
+use crate as bevy_ecs;
 
-use crate::{system::{IntoSystem, System, SystemParamFunction}, world::Mut};
+use crate::{system::{boxysystem::IntoBoxySystem, Resource, System}, world::Mut};
+use bevy_ecs_macros::Resource;
 use bevy_utils::TypeIdMap;
 use smallvec::SmallVec;
 
@@ -10,6 +12,7 @@ pub struct EventInSystem<E: Event + Clone> {
     pub v: BoxedSystem<E, Box<dyn Event>>,
     pub tid: TypeId,
 }
+#[derive(Resource)]
 pub struct RegisteredSystems<E: Event + Clone>{
     pub v: SmallVec<[EventInSystem<E>; 1]>,
     pub tid: TypeIdMap<usize>,
@@ -22,14 +25,19 @@ pub fn register_system<E, Out, F, M>(world: &mut World, f: F)
 where
     E: Event + Clone,
     Out: Event + Clone,
-    F: IntoSystem<E, Out, M> + 'static,
+    F: IntoBoxySystem<E, Out, M> + 'static,
 {
     world.init_resource::<RegisteredSystems<E>>();
     world.resource_scope(|world: &mut World, mut systems: Mut<RegisteredSystems<E>>| {
         let tid = TypeId::of::<F>();
         if systems.tid.contains_key(&tid) { return };
 
-        let system = IntoSystem::into_system(f);
+        let mut system = IntoBoxySystem::into_system(f);
+        system.initialize(world);
+        let system = EventInSystem { v: Box::new(system), tid };
+        systems.v.push(system);
+        let index = systems.v.len() - 1;
+        systems.tid.insert(tid, index);
     });
 }
 

@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 use std::borrow::Cow;
 
-use crate::{archetype::ArchetypeComponentId, component::{ComponentId, Tick}, query::Access, system::{boxysystem::IntoBoxySystem, check_system_change_tick, ExclusiveSystemParam, System, SystemMeta}, world::{unsafe_world_cell::UnsafeWorldCell, World}};
+use crate::{archetype::ArchetypeComponentId, component::{ComponentId, Tick}, event::Event, query::Access, system::{boxysystem::IntoBoxySystem, check_system_change_tick, ExclusiveSystemParam, System, SystemMeta}, world::{unsafe_world_cell::UnsafeWorldCell, World}};
 
 use super::{ExclusiveSystemParamFunction, IsExclusiveFunctionSystem, PARAM_MESSAGE};
 
@@ -19,6 +19,7 @@ impl<Marker, F> IntoBoxySystem<F::In, F::Out, (IsExclusiveFunctionSystem, Marker
 where
     Marker: 'static,
     F: ExclusiveSystemParamFunction<Marker>,
+    F::Out : Event + Clone,
 {
     type System = BoxyExclusiveFunctionSystem<Marker, F>;
     fn into_system(func: Self) -> Self::System {
@@ -34,9 +35,10 @@ impl<Marker, F> System for BoxyExclusiveFunctionSystem<Marker, F>
 where
     Marker: 'static,
     F: ExclusiveSystemParamFunction<Marker>,
+    F::Out: Event + Clone,
 {
     type In = F::In;
-    type Out = Box<F::Out>;
+    type Out = Box<dyn Event>;
 
     #[inline]
     fn name(&self) -> Cow<'static, str> {

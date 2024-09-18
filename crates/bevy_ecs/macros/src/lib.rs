@@ -588,10 +588,10 @@ pub(crate) fn bevy_ecs_path() -> syn::Path {
 //     component::derive_event(input)
 // }
 
-// #[proc_macro_derive(Resource)]
-// pub fn derive_resource(input: TokenStream) -> TokenStream {
-//     component::derive_resource(input)
-// }
+#[proc_macro_derive(Resource)]
+pub fn derive_resource(input: TokenStream) -> TokenStream {
+    component::derive_resource(input)
+}
 
 #[proc_macro_derive(Component, attributes(component, require))]
 pub fn derive_component(input: TokenStream) -> TokenStream {

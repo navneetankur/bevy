@@ -1,13 +1,13 @@
 use core::{any::TypeId, marker::PhantomData};
 use std::borrow::Cow;
 
-use crate::{archetype::{ArchetypeComponentId, ArchetypeGeneration}, component::{ComponentId, Tick}, query::Access, system::{check_system_change_tick, ReadOnlySystem, ReadOnlySystemParam, System, SystemParam}, world::{unsafe_world_cell::UnsafeWorldCell, DeferredWorld, World, WorldId}};
+use crate::{archetype::{ArchetypeComponentId, ArchetypeGeneration}, component::{ComponentId, Tick}, event::Event, query::Access, system::{check_system_change_tick, ReadOnlySystem, ReadOnlySystemParam, System, SystemParam}, world::{unsafe_world_cell::UnsafeWorldCell, DeferredWorld, World, WorldId}};
 
 use super::{IsFunctionSystem, SystemMeta, SystemParamFunction};
 
-pub trait IntoBoxySystem<In, Out, Marker>: Sized {
+pub trait IntoBoxySystem<In, Out: Event, Marker>: Sized {
     /// The type of [`System`] that this instance converts into.
-    type System: System<In = In, Out = Box<Out>>;
+    type System: System<In = In, Out = Box<dyn Event>>;
 
     /// Turns this value into its corresponding [`System`].
     fn into_system(this: Self) -> Self::System;
@@ -34,9 +34,10 @@ impl<Marker, F> System for BoxyFunctionSystem<Marker, F>
 where
     Marker: 'static,
     F: SystemParamFunction<Marker>,
+    F::Out: Event + Clone,
 {
     type In = F::In;
-    type Out = Box<F::Out>;
+    type Out = Box<dyn Event>;
 
     #[inline]
     fn name(&self) -> Cow<'static, str> {
@@ -69,7 +70,7 @@ where
     }
 
     #[inline]
-    unsafe fn run_unsafe(&mut self, input: Self::In, world: UnsafeWorldCell) -> Self::Out {
+    unsafe fn run_unsafe(&mut self, input: Self::In, world: UnsafeWorldCell) -> Self::Out  {
         #[cfg(feature = "trace")]
         let _span_guard = self.system_meta.system_span.enter();
 
@@ -155,11 +156,13 @@ where
     Marker: 'static,
     F: SystemParamFunction<Marker>,
     F::Param: ReadOnlySystemParam,
+    F::Out: Event + Clone,
 {}
 impl<Marker, F> IntoBoxySystem<F::In, F::Out, (IsFunctionSystem, Marker)> for F
 where
     Marker: 'static,
     F: SystemParamFunction<Marker>,
+    F::Out: Clone + Event,
 {
     type System = BoxyFunctionSystem<Marker, F>;
     fn into_system(func: Self) -> Self::System {
