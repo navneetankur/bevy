@@ -4,7 +4,6 @@ version = "0.15.0-dev"
 edition = "2021"
 categories = ["game-engines", "graphics", "gui", "rendering"]
 description = "A refreshingly simple data-driven game engine and app framework"
-exclude = ["assets/", "tools/", ".github/", "crates/", "examples/wasm/assets/"]
 homepage = "https://bevyengine.org"
 keywords = ["game", "engine", "gamedev", "graphics", "bevy"]
 license = "MIT OR Apache-2.0"
@@ -15,6 +14,7 @@ rust-version = "1.79.0"
 [workspace]
 members = [
   "crates/*",
+  "example"
 ]
 
 

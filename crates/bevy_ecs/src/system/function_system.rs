@@ -769,39 +769,13 @@ pub trait SystemParamFunction<Marker>: Send + Sync + 'static {
 
 macro_rules! impl_system_function {
     ($($param: ident),*) => {
-        #[allow(non_snake_case)]
-        impl<Out, Func: Send + Sync + 'static, $($param: SystemParam),*> SystemParamFunction<fn($($param,)*) -> Out> for Func
-        where
-        for <'a> &'a mut Func:
-                FnMut($($param),*) -> Out +
-                FnMut($(SystemParamItem<$param>),*) -> Out, Out: 'static
-        {
-            type In = ();
-            type Out = Out;
-            type Param = ($($param,)*);
-            #[inline]
-            fn run(&mut self, _input: (), param_value: SystemParamItem< ($($param,)*)>) -> Out {
-                // Yes, this is strange, but `rustc` fails to compile this impl
-                // without using this function. It fails to recognize that `func`
-                // is a function, potentially because of the multiple impls of `FnMut`
-                #[allow(clippy::too_many_arguments)]
-                fn call_inner<Out, $($param,)*>(
-                    mut f: impl FnMut($($param,)*)->Out,
-                    $($param: $param,)*
-                )->Out{
-                    f($($param,)*)
-                }
-                let ($($param,)*) = param_value;
-                call_inner(self, $($param),*)
-            }
-        }
 
         #[allow(non_snake_case)]
-        impl<Input, Out, Func: Send + Sync + 'static, $($param: SystemParam),*> SystemParamFunction<fn(In<Input>, $($param,)*) -> Out> for Func
+        impl<Input, Out, Func: Send + Sync + 'static, $($param: SystemParam),*> SystemParamFunction<fn(Input, $($param,)*) -> Out> for Func
         where
         for <'a> &'a mut Func:
-                FnMut(In<Input>, $($param),*) -> Out +
-                FnMut(In<Input>, $(SystemParamItem<$param>),*) -> Out, Out: 'static
+                FnMut(Input, $($param),*) -> Out +
+                FnMut(Input, $(SystemParamItem<$param>),*) -> Out, Out: 'static
         {
             type In = Input;
             type Out = Out;
@@ -810,14 +784,14 @@ macro_rules! impl_system_function {
             fn run(&mut self, input: Input, param_value: SystemParamItem< ($($param,)*)>) -> Out {
                 #[allow(clippy::too_many_arguments)]
                 fn call_inner<Input, Out, $($param,)*>(
-                    mut f: impl FnMut(In<Input>, $($param,)*)->Out,
-                    input: In<Input>,
+                    mut f: impl FnMut(Input, $($param,)*)->Out,
+                    input: Input,
                     $($param: $param,)*
                 )->Out{
                     f(input, $($param,)*)
                 }
                 let ($($param,)*) = param_value;
-                call_inner(self, In(input), $($param),*)
+                call_inner(self, input, $($param),*)
             }
         }
     };
