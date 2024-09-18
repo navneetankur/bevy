@@ -1,5 +1,4 @@
 use crate::{self as bevy_ecs, world::Mut};
-use bevy_ecs_macros::Resource;
 use bevy_utils::TypeIdMap;
 use smallvec::SmallVec;
 
@@ -8,7 +7,6 @@ use crate::{system::BoxedSystem, world::World};
 pub struct EventInSystem<E: Event + Clone> {
     pub v: BoxedSystem<E, Box<dyn Event>>,
 }
-#[derive(Resource)]
 pub struct RegisteredSystems<E: Event + Clone>{
     pub v: SmallVec<[EventInSystem<E>; 1]>,
     pub tid: TypeIdMap<usize>,

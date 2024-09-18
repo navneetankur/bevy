@@ -10,7 +10,7 @@ fn t1() {
     let v = world.run_system_once_with(9, s1);
     world.spawn(C1);
     assert_eq!(v, 9);
-    let v = world.run_system_once_with(8, s1);
+    let v = world.run_system_once_with(8, s2);
     assert_eq!(v, 8);
 }
 
