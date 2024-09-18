@@ -199,39 +199,11 @@ pub trait ExclusiveSystemParamFunction<Marker>: Send + Sync + 'static {
 macro_rules! impl_exclusive_system_function {
     ($($param: ident),*) => {
         #[allow(non_snake_case)]
-        impl<Out, Func: Send + Sync + 'static, $($param: ExclusiveSystemParam),*> ExclusiveSystemParamFunction<fn($($param,)*) -> Out> for Func
+        impl<Input, Out, Func: Send + Sync + 'static, $($param: ExclusiveSystemParam),*> ExclusiveSystemParamFunction<fn(Input, $($param,)*) -> Out> for Func
         where
         for <'a> &'a mut Func:
-                FnMut(&mut World, $($param),*) -> Out +
-                FnMut(&mut World, $(ExclusiveSystemParamItem<$param>),*) -> Out,
-            Out: 'static,
-        {
-            type In = ();
-            type Out = Out;
-            type Param = ($($param,)*);
-            #[inline]
-            fn run(&mut self, world: &mut World, _in: (), param_value: ExclusiveSystemParamItem< ($($param,)*)>) -> Out {
-                // Yes, this is strange, but `rustc` fails to compile this impl
-                // without using this function. It fails to recognize that `func`
-                // is a function, potentially because of the multiple impls of `FnMut`
-                #[allow(clippy::too_many_arguments)]
-                fn call_inner<Out, $($param,)*>(
-                    mut f: impl FnMut(&mut World, $($param,)*) -> Out,
-                    world: &mut World,
-                    $($param: $param,)*
-                ) -> Out {
-                    f(world, $($param,)*)
-                }
-                let ($($param,)*) = param_value;
-                call_inner(self, world, $($param),*)
-            }
-        }
-        #[allow(non_snake_case)]
-        impl<Input, Out, Func: Send + Sync + 'static, $($param: ExclusiveSystemParam),*> ExclusiveSystemParamFunction<fn(In<Input>, $($param,)*) -> Out> for Func
-        where
-        for <'a> &'a mut Func:
-                FnMut(In<Input>, &mut World, $($param),*) -> Out +
-                FnMut(In<Input>, &mut World, $(ExclusiveSystemParamItem<$param>),*) -> Out,
+                FnMut(Input, &mut World, $($param),*) -> Out +
+                FnMut(Input, &mut World, $(ExclusiveSystemParamItem<$param>),*) -> Out,
             Out: 'static,
         {
             type In = Input;
@@ -244,12 +216,12 @@ macro_rules! impl_exclusive_system_function {
                 // is a function, potentially because of the multiple impls of `FnMut`
                 #[allow(clippy::too_many_arguments)]
                 fn call_inner<Input, Out, $($param,)*>(
-                    mut f: impl FnMut(In<Input>, &mut World, $($param,)*) -> Out,
+                    mut f: impl FnMut(Input, &mut World, $($param,)*) -> Out,
                     input: Input,
                     world: &mut World,
                     $($param: $param,)*
                 ) -> Out {
-                    f(In(input), world, $($param,)*)
+                    f(input, world, $($param,)*)
                 }
                 let ($($param,)*) = param_value;
                 call_inner(self, input, world, $($param),*)
