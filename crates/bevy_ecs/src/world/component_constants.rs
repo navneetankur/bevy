@@ -1,5 +1,6 @@
+use crate as bevy_ecs;
 use super::*;
-use crate::{self as bevy_ecs};
+use bevy_ecs_macros::Event;
 #[cfg(feature = "bevy_reflect")]
 use bevy_reflect::Reflect;
 /// Internal components used by bevy with a fixed component id.

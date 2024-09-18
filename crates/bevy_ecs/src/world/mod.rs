@@ -4,7 +4,6 @@ pub(crate) mod command_queue;
 mod component_constants;
 mod deferred_world;
 mod entity_ref;
-pub mod error;
 mod identifier;
 mod spawn_batch;
 pub mod unsafe_world_cell;
@@ -34,14 +33,10 @@ use crate::{
         Components, Tick,
     },
     entity::{AllocAtWithoutReplacement, Entities, Entity, EntityHashSet, EntityLocation},
-    event::{Event, EventId, Events, SendBatchIds},
-    observer::Observers,
     query::{DebugCheckedUnwrap, QueryData, QueryEntityError, QueryFilter, QueryState},
-    removal_detection::RemovedComponentEvents,
-    schedule::{Schedule, ScheduleLabel, Schedules},
     storage::{ResourceData, Storages},
     system::{Commands, Res, Resource},
-    world::{command_queue::RawCommandQueue, error::TryRunScheduleError},
+    world::command_queue::RawCommandQueue,
 };
 use bevy_ptr::{OwningPtr, Ptr};
 use bevy_utils::tracing::warn;
@@ -121,11 +116,8 @@ pub struct World {
     pub(crate) archetypes: Archetypes,
     pub(crate) storages: Storages,
     pub(crate) bundles: Bundles,
-    pub(crate) observers: Observers,
-    pub(crate) removed_components: RemovedComponentEvents,
     pub(crate) change_tick: AtomicU32,
     pub(crate) last_change_tick: Tick,
-    pub(crate) last_check_tick: Tick,
     pub(crate) last_trigger_id: u32,
     pub(crate) command_queue: RawCommandQueue,
 }
@@ -139,13 +131,10 @@ impl Default for World {
             archetypes: Archetypes::new(),
             storages: Default::default(),
             bundles: Default::default(),
-            observers: Observers::default(),
-            removed_components: Default::default(),
             // Default value is `1`, and `last_change_tick`s default to `0`, such that changes
             // are detected on first system runs and for direct world queries.
             change_tick: AtomicU32::new(1),
             last_change_tick: Tick::new(0),
-            last_check_tick: Tick::new(0),
             last_trigger_id: 0,
             command_queue: RawCommandQueue::new(),
         };
@@ -243,12 +232,6 @@ impl World {
     #[inline]
     pub fn bundles(&self) -> &Bundles {
         &self.bundles
-    }
-
-    /// Retrieves this world's [`RemovedComponentEvents`] collection
-    #[inline]
-    pub fn removed_components(&self) -> &RemovedComponentEvents {
-        &self.removed_components
     }
 
     /// Creates a new [`Commands`] instance that writes to the world's command queue
@@ -1182,7 +1165,6 @@ impl World {
     ///
     /// [`RemovedComponents`]: crate::removal_detection::RemovedComponents
     pub fn clear_trackers(&mut self) {
-        self.removed_components.update();
         self.last_change_tick = self.increment_change_tick();
     }
 
@@ -1275,27 +1257,6 @@ impl World {
     #[inline]
     pub fn query_filtered<D: QueryData, F: QueryFilter>(&mut self) -> QueryState<D, F> {
         QueryState::new(self)
-    }
-
-    /// Returns an iterator of entities that had components of type `T` removed
-    /// since the last call to [`World::clear_trackers`].
-    pub fn removed<T: Component>(&self) -> impl Iterator<Item = Entity> + '_ {
-        self.components
-            .get_id(TypeId::of::<T>())
-            .map(|component_id| self.removed_with_id(component_id))
-            .into_iter()
-            .flatten()
-    }
-
-    /// Returns an iterator of entities that had components with the given `component_id` removed
-    /// since the last call to [`World::clear_trackers`].
-    pub fn removed_with_id(&self, component_id: ComponentId) -> impl Iterator<Item = Entity> + '_ {
-        self.removed_components
-            .get(component_id)
-            .map(|removed| removed.iter_current_update_events().cloned())
-            .into_iter()
-            .flatten()
-            .map(Into::into)
     }
 
     /// Initializes a new resource and returns the [`ComponentId`] created for it.
@@ -2036,40 +1997,6 @@ impl World {
         result
     }
 
-    /// Sends an [`Event`].
-    /// This method returns the [ID](`EventId`) of the sent `event`,
-    /// or [`None`] if the `event` could not be sent.
-    #[inline]
-    pub fn send_event<E: Event>(&mut self, event: E) -> Option<EventId<E>> {
-        self.send_event_batch(std::iter::once(event))?.next()
-    }
-
-    /// Sends the default value of the [`Event`] of type `E`.
-    /// This method returns the [ID](`EventId`) of the sent `event`,
-    /// or [`None`] if the `event` could not be sent.
-    #[inline]
-    pub fn send_event_default<E: Event + Default>(&mut self) -> Option<EventId<E>> {
-        self.send_event(E::default())
-    }
-
-    /// Sends a batch of [`Event`]s from an iterator.
-    /// This method returns the [IDs](`EventId`) of the sent `events`,
-    /// or [`None`] if the `event` could not be sent.
-    #[inline]
-    pub fn send_event_batch<E: Event>(
-        &mut self,
-        events: impl IntoIterator<Item = E>,
-    ) -> Option<SendBatchIds<E>> {
-        let Some(mut events_resource) = self.get_resource_mut::<Events<E>>() else {
-            bevy_utils::tracing::error!(
-                "Unable to send event `{}`\n\tEvent must be added to the app with `add_event()`\n\thttps://docs.rs/bevy/*/bevy/app/struct.App.html#method.add_event ",
-                std::any::type_name::<E>()
-            );
-            return None;
-        };
-        Some(events_resource.send_batch(events))
-    }
-
     /// Inserts a new resource with the given `value`. Will replace the value if it already existed.
     ///
     /// **You should prefer to use the typed API [`World::insert_resource`] where possible and only
@@ -2362,39 +2289,6 @@ impl World {
         guard.world.last_change_tick = last_change_tick;
 
         f(guard.world)
-    }
-
-    /// Iterates all component change ticks and clamps any older than [`MAX_CHANGE_AGE`](crate::change_detection::MAX_CHANGE_AGE).
-    /// This prevents overflow and thus prevents false positives.
-    ///
-    /// **Note:** Does nothing if the [`World`] counter has not been incremented at least [`CHECK_TICK_THRESHOLD`]
-    /// times since the previous pass.
-    // TODO: benchmark and optimize
-    pub fn check_change_ticks(&mut self) {
-        let change_tick = self.change_tick();
-        if change_tick.relative_to(self.last_check_tick).get() < CHECK_TICK_THRESHOLD {
-            return;
-        }
-
-        let Storages {
-            ref mut tables,
-            ref mut sparse_sets,
-            ref mut resources,
-            ref mut non_send_resources,
-        } = self.storages;
-
-        #[cfg(feature = "trace")]
-        let _span = bevy_utils::tracing::info_span!("check component ticks").entered();
-        tables.check_change_ticks(change_tick);
-        sparse_sets.check_change_ticks(change_tick);
-        resources.check_change_ticks(change_tick);
-        non_send_resources.check_change_ticks(change_tick);
-
-        if let Some(mut schedules) = self.get_resource_mut::<Schedules>() {
-            schedules.check_change_ticks(change_tick);
-        }
-
-        self.last_check_tick = change_tick;
     }
 
     /// Runs both [`clear_entities`](Self::clear_entities) and [`clear_resources`](Self::clear_resources),
@@ -2788,141 +2682,6 @@ impl World {
                 .get_entity(entity)?
                 .get_mut_by_id(component_id)
         }
-    }
-}
-
-// Schedule-related methods
-impl World {
-    /// Adds the specified [`Schedule`] to the world. The schedule can later be run
-    /// by calling [`.run_schedule(label)`](Self::run_schedule) or by directly
-    /// accessing the [`Schedules`] resource.
-    ///
-    /// The `Schedules` resource will be initialized if it does not already exist.
-    pub fn add_schedule(&mut self, schedule: Schedule) {
-        let mut schedules = self.get_resource_or_insert_with(Schedules::default);
-        schedules.insert(schedule);
-    }
-
-    /// Temporarily removes the schedule associated with `label` from the world,
-    /// runs user code, and finally re-adds the schedule.
-    /// This returns a [`TryRunScheduleError`] if there is no schedule
-    /// associated with `label`.
-    ///
-    /// The [`Schedule`] is fetched from the [`Schedules`] resource of the world by its label,
-    /// and system state is cached.
-    ///
-    /// For simple cases where you just need to call the schedule once,
-    /// consider using [`World::try_run_schedule`] instead.
-    /// For other use cases, see the example on [`World::schedule_scope`].
-    pub fn try_schedule_scope<R>(
-        &mut self,
-        label: impl ScheduleLabel,
-        f: impl FnOnce(&mut World, &mut Schedule) -> R,
-    ) -> Result<R, TryRunScheduleError> {
-        let label = label.intern();
-        let Some(mut schedule) = self
-            .get_resource_mut::<Schedules>()
-            .and_then(|mut s| s.remove(label))
-        else {
-            return Err(TryRunScheduleError(label));
-        };
-
-        let value = f(self, &mut schedule);
-
-        let old = self.resource_mut::<Schedules>().insert(schedule);
-        if old.is_some() {
-            warn!("Schedule `{label:?}` was inserted during a call to `World::schedule_scope`: its value has been overwritten");
-        }
-
-        Ok(value)
-    }
-
-    /// Temporarily removes the schedule associated with `label` from the world,
-    /// runs user code, and finally re-adds the schedule.
-    ///
-    /// The [`Schedule`] is fetched from the [`Schedules`] resource of the world by its label,
-    /// and system state is cached.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use bevy_ecs::{prelude::*, schedule::ScheduleLabel};
-    /// # #[derive(ScheduleLabel, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    /// # pub struct MySchedule;
-    /// # #[derive(Resource)]
-    /// # struct Counter(usize);
-    /// #
-    /// # let mut world = World::new();
-    /// # world.insert_resource(Counter(0));
-    /// # let mut schedule = Schedule::new(MySchedule);
-    /// # schedule.add_systems(tick_counter);
-    /// # world.init_resource::<Schedules>();
-    /// # world.add_schedule(schedule);
-    /// # fn tick_counter(mut counter: ResMut<Counter>) { counter.0 += 1; }
-    /// // Run the schedule five times.
-    /// world.schedule_scope(MySchedule, |world, schedule| {
-    ///     for _ in 0..5 {
-    ///         schedule.run(world);
-    ///     }
-    /// });
-    /// # assert_eq!(world.resource::<Counter>().0, 5);
-    /// ```
-    ///
-    /// For simple cases where you just need to call the schedule once,
-    /// consider using [`World::run_schedule`] instead.
-    ///
-    /// # Panics
-    ///
-    /// If the requested schedule does not exist.
-    pub fn schedule_scope<R>(
-        &mut self,
-        label: impl ScheduleLabel,
-        f: impl FnOnce(&mut World, &mut Schedule) -> R,
-    ) -> R {
-        self.try_schedule_scope(label, f)
-            .unwrap_or_else(|e| panic!("{e}"))
-    }
-
-    /// Attempts to run the [`Schedule`] associated with the `label` a single time,
-    /// and returns a [`TryRunScheduleError`] if the schedule does not exist.
-    ///
-    /// The [`Schedule`] is fetched from the [`Schedules`] resource of the world by its label,
-    /// and system state is cached.
-    ///
-    /// For simple testing use cases, call [`Schedule::run(&mut world)`](Schedule::run) instead.
-    pub fn try_run_schedule(
-        &mut self,
-        label: impl ScheduleLabel,
-    ) -> Result<(), TryRunScheduleError> {
-        self.try_schedule_scope(label, |world, sched| sched.run(world))
-    }
-
-    /// Runs the [`Schedule`] associated with the `label` a single time.
-    ///
-    /// The [`Schedule`] is fetched from the [`Schedules`] resource of the world by its label,
-    /// and system state is cached.
-    ///
-    /// For simple testing use cases, call [`Schedule::run(&mut world)`](Schedule::run) instead.
-    ///
-    /// # Panics
-    ///
-    /// If the requested schedule does not exist.
-    pub fn run_schedule(&mut self, label: impl ScheduleLabel) {
-        self.schedule_scope(label, |world, sched| sched.run(world));
-    }
-
-    /// Ignore system order ambiguities caused by conflicts on [`Component`]s of type `T`.
-    pub fn allow_ambiguous_component<T: Component>(&mut self) {
-        let mut schedules = self.remove_resource::<Schedules>().unwrap_or_default();
-        schedules.allow_ambiguous_component::<T>(self);
-        self.insert_resource(schedules);
-    }
-
-    /// Ignore system order ambiguities caused by conflicts on [`Resource`]s of type `T`.
-    pub fn allow_ambiguous_resource<T: Resource>(&mut self) {
-        let mut schedules = self.remove_resource::<Schedules>().unwrap_or_default();
-        schedules.allow_ambiguous_resource::<T>(self);
-        self.insert_resource(schedules);
     }
 }
 

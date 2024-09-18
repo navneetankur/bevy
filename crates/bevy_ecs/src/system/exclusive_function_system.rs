@@ -2,7 +2,6 @@ use crate::{
     archetype::ArchetypeComponentId,
     component::{ComponentId, Tick},
     query::Access,
-    schedule::{InternedSystemSet, SystemSet},
     system::{
         check_system_change_tick, ExclusiveSystemParam, ExclusiveSystemParamItem, In, IntoSystem,
         System, SystemMeta,
@@ -159,11 +158,6 @@ where
             change_tick,
             self.system_meta.name.as_ref(),
         );
-    }
-
-    fn default_system_sets(&self) -> Vec<InternedSystemSet> {
-        let set = crate::schedule::SystemTypeSet::<Self>::new();
-        vec![set.intern()]
     }
 
     fn get_last_run(&self) -> Tick {

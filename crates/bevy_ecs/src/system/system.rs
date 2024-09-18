@@ -2,7 +2,6 @@ use bevy_utils::tracing::warn;
 use core::fmt::Debug;
 
 use crate::component::Tick;
-use crate::schedule::InternedSystemSet;
 use crate::world::unsafe_world_cell::UnsafeWorldCell;
 use crate::world::DeferredWorld;
 use crate::{archetype::ArchetypeComponentId, component::ComponentId, query::Access, world::World};
@@ -109,13 +108,6 @@ pub trait System: Send + Sync + 'static {
     /// This method must be called periodically to ensure that change detection behaves correctly.
     /// When using bevy's default configuration, this will be called for you as needed.
     fn check_change_tick(&mut self, change_tick: Tick);
-
-    /// Returns the system's default [system sets](crate::schedule::SystemSet).
-    ///
-    /// Each system will create a default system set that contains the system.
-    fn default_system_sets(&self) -> Vec<InternedSystemSet> {
-        Vec::new()
-    }
 
     /// Gets the tick indicating the last time this system ran.
     fn get_last_run(&self) -> Tick;

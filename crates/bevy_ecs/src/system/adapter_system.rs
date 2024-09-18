@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use super::{ReadOnlySystem, System};
-use crate::{schedule::InternedSystemSet, world::unsafe_world_cell::UnsafeWorldCell};
+use crate::world::unsafe_world_cell::UnsafeWorldCell;
 
 /// Customizes the behavior of an [`AdapterSystem`]
 ///
@@ -143,10 +143,6 @@ where
 
     fn check_change_tick(&mut self, change_tick: crate::component::Tick) {
         self.system.check_change_tick(change_tick);
-    }
-
-    fn default_system_sets(&self) -> Vec<InternedSystemSet> {
-        self.system.default_system_sets()
     }
 
     fn get_last_run(&self) -> crate::component::Tick {

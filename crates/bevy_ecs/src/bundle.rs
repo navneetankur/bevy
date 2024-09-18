@@ -14,11 +14,10 @@ use crate::{
         StorageType, Tick,
     },
     entity::{Entities, Entity, EntityLocation},
-    observer::Observers,
     prelude::World,
     query::DebugCheckedUnwrap,
     storage::{SparseSetIndex, SparseSets, Storages, Table, TableRow},
-    world::{unsafe_world_cell::UnsafeWorldCell, ON_ADD, ON_INSERT, ON_REPLACE},
+    world::unsafe_world_cell::UnsafeWorldCell,
 };
 use bevy_ptr::{ConstNonNull, OwningPtr};
 use bevy_utils::{all_tuples, HashMap, HashSet, TypeIdMap};
@@ -640,7 +639,6 @@ impl BundleInfo {
         archetypes: &mut Archetypes,
         storages: &mut Storages,
         components: &Components,
-        observers: &Observers,
         archetype_id: ArchetypeId,
     ) -> ArchetypeId {
         if let Some(add_bundle_id) = archetypes[archetype_id].edges().get_add_bundle(self.id) {
@@ -736,7 +734,6 @@ impl BundleInfo {
             // SAFETY: ids in self must be valid
             let new_archetype_id = archetypes.get_id_or_insert(
                 components,
-                observers,
                 table_id,
                 table_components,
                 sparse_set_components,
@@ -809,7 +806,6 @@ impl<'w> BundleInserter<'w> {
             &mut world.archetypes,
             &mut world.storages,
             &world.components,
-            &world.observers,
             archetype_id,
         );
         if new_archetype_id == archetype_id {
@@ -900,13 +896,6 @@ impl<'w> BundleInserter<'w> {
 
             if insert_mode == InsertMode::Replace {
                 deferred_world.trigger_on_replace(archetype, entity, add_bundle.iter_existing());
-                if archetype.has_replace_observer() {
-                    deferred_world.trigger_observers(
-                        ON_REPLACE,
-                        entity,
-                        add_bundle.iter_existing(),
-                    );
-                }
             }
         }
 
@@ -1073,9 +1062,6 @@ impl<'w> BundleInserter<'w> {
         // as they must be initialized before creating the BundleInfo.
         unsafe {
             deferred_world.trigger_on_add(new_archetype, entity, add_bundle.iter_added());
-            if new_archetype.has_add_observer() {
-                deferred_world.trigger_observers(ON_ADD, entity, add_bundle.iter_added());
-            }
             match insert_mode {
                 InsertMode::Replace => {
                     // insert triggers for both new and existing components if we're replacing them
@@ -1084,13 +1070,6 @@ impl<'w> BundleInserter<'w> {
                         entity,
                         add_bundle.iter_inserted(),
                     );
-                    if new_archetype.has_insert_observer() {
-                        deferred_world.trigger_observers(
-                            ON_INSERT,
-                            entity,
-                            add_bundle.iter_inserted(),
-                        );
-                    }
                 }
                 InsertMode::Keep => {
                     // insert triggers only for new components if we're not replacing them (since
@@ -1100,13 +1079,6 @@ impl<'w> BundleInserter<'w> {
                         entity,
                         add_bundle.iter_added(),
                     );
-                    if new_archetype.has_insert_observer() {
-                        deferred_world.trigger_observers(
-                            ON_INSERT,
-                            entity,
-                            add_bundle.iter_added(),
-                        );
-                    }
                 }
             }
         }
@@ -1155,7 +1127,6 @@ impl<'w> BundleSpawner<'w> {
             &mut world.archetypes,
             &mut world.storages,
             &world.components,
-            &world.observers,
             ArchetypeId::EMPTY,
         );
         let archetype = &mut world.archetypes[new_archetype_id];
@@ -1228,25 +1199,11 @@ impl<'w> BundleSpawner<'w> {
                 entity,
                 bundle_info.iter_contributed_components(),
             );
-            if archetype.has_add_observer() {
-                deferred_world.trigger_observers(
-                    ON_ADD,
-                    entity,
-                    bundle_info.iter_contributed_components(),
-                );
-            }
             deferred_world.trigger_on_insert(
                 archetype,
                 entity,
                 bundle_info.iter_contributed_components(),
             );
-            if archetype.has_insert_observer() {
-                deferred_world.trigger_observers(
-                    ON_INSERT,
-                    entity,
-                    bundle_info.iter_contributed_components(),
-                );
-            }
         };
 
         location

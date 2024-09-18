@@ -5,12 +5,9 @@ use crate::{
     change_detection::MutUntyped,
     component::ComponentId,
     entity::Entity,
-    event::{Event, EventId, Events, SendBatchIds},
-    observer::{Observers, TriggerTargets},
     prelude::{Component, QueryState},
     query::{QueryData, QueryFilter},
     system::{Commands, Query, Resource},
-    traversal::Traversal,
 };
 
 use super::{
@@ -197,40 +194,6 @@ impl<'w> DeferredWorld<'w> {
         unsafe { self.world.get_non_send_resource_mut() }
     }
 
-    /// Sends an [`Event`].
-    /// This method returns the [ID](`EventId`) of the sent `event`,
-    /// or [`None`] if the `event` could not be sent.
-    #[inline]
-    pub fn send_event<E: Event>(&mut self, event: E) -> Option<EventId<E>> {
-        self.send_event_batch(std::iter::once(event))?.next()
-    }
-
-    /// Sends the default value of the [`Event`] of type `E`.
-    /// This method returns the [ID](`EventId`) of the sent `event`,
-    /// or [`None`] if the `event` could not be sent.
-    #[inline]
-    pub fn send_event_default<E: Event + Default>(&mut self) -> Option<EventId<E>> {
-        self.send_event(E::default())
-    }
-
-    /// Sends a batch of [`Event`]s from an iterator.
-    /// This method returns the [IDs](`EventId`) of the sent `events`,
-    /// or [`None`] if the `event` could not be sent.
-    #[inline]
-    pub fn send_event_batch<E: Event>(
-        &mut self,
-        events: impl IntoIterator<Item = E>,
-    ) -> Option<SendBatchIds<E>> {
-        let Some(mut events_resource) = self.get_resource_mut::<Events<E>>() else {
-            bevy_utils::tracing::error!(
-                "Unable to send event `{}`\n\tEvent must be added to the app with `add_event()`\n\thttps://docs.rs/bevy/*/bevy/app/struct.App.html#method.add_event ",
-                std::any::type_name::<E>()
-            );
-            return None;
-        };
-        Some(events_resource.send_batch(events))
-    }
-
     /// Gets a pointer to the resource with the id [`ComponentId`] if it exists.
     /// The returned pointer may be used to modify the resource, as long as the mutable borrow
     /// of the [`World`] is still valid.
@@ -360,77 +323,6 @@ impl<'w> DeferredWorld<'w> {
             }
         }
     }
-
-    /// Triggers all event observers for [`ComponentId`] in target.
-    ///
-    /// # Safety
-    /// Caller must ensure observers listening for `event` can accept ZST pointers
-    #[inline]
-    pub(crate) unsafe fn trigger_observers(
-        &mut self,
-        event: ComponentId,
-        entity: Entity,
-        components: impl Iterator<Item = ComponentId>,
-    ) {
-        Observers::invoke::<_>(
-            self.reborrow(),
-            event,
-            entity,
-            components,
-            &mut (),
-            &mut false,
-        );
-    }
-
-    /// Triggers all event observers for [`ComponentId`] in target.
-    ///
-    /// # Safety
-    /// Caller must ensure `E` is accessible as the type represented by `event`
-    #[inline]
-    pub(crate) unsafe fn trigger_observers_with_data<E, C>(
-        &mut self,
-        event: ComponentId,
-        mut entity: Entity,
-        components: &[ComponentId],
-        data: &mut E,
-        mut propagate: bool,
-    ) where
-        C: Traversal,
-    {
-        loop {
-            Observers::invoke::<_>(
-                self.reborrow(),
-                event,
-                entity,
-                components.iter().copied(),
-                data,
-                &mut propagate,
-            );
-            if !propagate {
-                break;
-            }
-            if let Some(traverse_to) = self.get::<C>(entity).and_then(C::traverse) {
-                entity = traverse_to;
-            } else {
-                break;
-            }
-        }
-    }
-
-    /// Sends a "global" [`Trigger`](crate::observer::Trigger) without any targets.
-    pub fn trigger<T: Event>(&mut self, trigger: impl Event) {
-        self.commands().trigger(trigger);
-    }
-
-    /// Sends a [`Trigger`](crate::observer::Trigger) with the given `targets`.
-    pub fn trigger_targets(
-        &mut self,
-        trigger: impl Event,
-        targets: impl TriggerTargets + Send + Sync + 'static,
-    ) {
-        self.commands().trigger_targets(trigger, targets);
-    }
-
     /// Gets an [`UnsafeWorldCell`] containing the underlying world.
     ///
     /// # Safety

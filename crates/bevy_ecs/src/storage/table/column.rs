@@ -224,29 +224,6 @@ impl ThinColumn {
         self.changed_by
             .initialize_unchecked(dst_row.as_usize(), changed_by);
     }
-
-    /// Call [`Tick::check_tick`] on all of the ticks stored in this column.
-    ///
-    /// # Safety
-    /// `len` is the actual length of this column
-    #[inline]
-    pub(crate) unsafe fn check_change_ticks(&mut self, len: usize, change_tick: Tick) {
-        for i in 0..len {
-            // SAFETY:
-            // - `i` < `len`
-            // we have a mutable reference to `self`
-            unsafe { self.added_ticks.get_unchecked_mut(i) }
-                .get_mut()
-                .check_tick(change_tick);
-            // SAFETY:
-            // - `i` < `len`
-            // we have a mutable reference to `self`
-            unsafe { self.changed_ticks.get_unchecked_mut(i) }
-                .get_mut()
-                .check_tick(change_tick);
-        }
-    }
-
     /// Clear all the components from this column.
     ///
     /// # Safety
@@ -646,17 +623,6 @@ impl Column {
         #[cfg(feature = "track_change_detection")]
         self.changed_by.clear();
     }
-
-    #[inline]
-    pub(crate) fn check_change_ticks(&mut self, change_tick: Tick) {
-        for component_ticks in &mut self.added_ticks {
-            component_ticks.get_mut().check_tick(change_tick);
-        }
-        for component_ticks in &mut self.changed_ticks {
-            component_ticks.get_mut().check_tick(change_tick);
-        }
-    }
-
     /// Fetches the calling location that last changed the value at `row`.
     ///
     /// Returns `None` if `row` is out of bounds.

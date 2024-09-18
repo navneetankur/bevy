@@ -4,19 +4,15 @@ use crate::{
     change_detection::MutUntyped,
     component::{Component, ComponentId, ComponentTicks, Components, StorageType},
     entity::{Entities, Entity, EntityLocation},
-    event::Event,
-    observer::{Observer, Observers},
     query::{Access, ReadOnlyQueryData},
-    removal_detection::RemovedComponentEvents,
     storage::Storages,
-    system::IntoObserverSystem,
     world::{DeferredWorld, Mut, World},
 };
 use bevy_ptr::{OwningPtr, Ptr};
 use std::{any::TypeId, marker::PhantomData};
 use thiserror::Error;
 
-use super::{unsafe_world_cell::UnsafeEntityCell, Ref, ON_REMOVE, ON_REPLACE};
+use super::{unsafe_world_cell::UnsafeEntityCell, Ref};
 
 /// A read-only reference to a particular [`Entity`] and all of its components.
 ///
@@ -965,7 +961,6 @@ impl<'w> EntityWorldMut<'w> {
                 &mut world.archetypes,
                 storages,
                 components,
-                &world.observers,
                 old_location.archetype_id,
                 bundle_info,
                 false,
@@ -1002,7 +997,6 @@ impl<'w> EntityWorldMut<'w> {
         let storages = &mut world.storages;
         let components = &mut world.components;
         let entities = &mut world.entities;
-        let removed_components = &mut world.removed_components;
 
         let entity = self.entity;
         let mut bundle_components = bundle_info.iter_explicit_components();
@@ -1018,7 +1012,6 @@ impl<'w> EntityWorldMut<'w> {
                 take_component(
                     storages,
                     components,
-                    removed_components,
                     component_id,
                     entity,
                     old_location,
@@ -1146,7 +1139,6 @@ impl<'w> EntityWorldMut<'w> {
             &mut world.archetypes,
             &mut world.storages,
             &world.components,
-            &world.observers,
             location.archetype_id,
             bundle_info,
             // components from the bundle that are not present on the entity are ignored
@@ -1182,7 +1174,6 @@ impl<'w> EntityWorldMut<'w> {
         let old_archetype = &world.archetypes[location.archetype_id];
         for component_id in bundle_info.iter_explicit_components() {
             if old_archetype.contains(component_id) {
-                world.removed_components.send(component_id, entity);
 
                 // Make sure to drop components stored in sparse sets.
                 // Dense components are dropped later in `move_to_and_drop_missing_unchecked`.
@@ -1310,17 +1301,7 @@ impl<'w> EntityWorldMut<'w> {
         // SAFETY: All components in the archetype exist in world
         unsafe {
             deferred_world.trigger_on_replace(archetype, self.entity, archetype.components());
-            if archetype.has_replace_observer() {
-                deferred_world.trigger_observers(ON_REPLACE, self.entity, archetype.components());
-            }
             deferred_world.trigger_on_remove(archetype, self.entity, archetype.components());
-            if archetype.has_remove_observer() {
-                deferred_world.trigger_observers(ON_REMOVE, self.entity, archetype.components());
-            }
-        }
-
-        for component_id in archetype.components() {
-            world.removed_components.send(component_id, self.entity);
         }
 
         let location = world
@@ -1500,23 +1481,6 @@ impl<'w> EntityWorldMut<'w> {
             })
         }
     }
-
-    /// Triggers the given `event` for this entity, which will run any observers watching for it.
-    pub fn trigger(&mut self, event: impl Event) -> &mut Self {
-        self.world.trigger_targets(event, self.entity);
-        self
-    }
-
-    /// Creates an [`Observer`] listening for events of type `E` targeting this entity.
-    /// In order to trigger the callback the entity must also match the query when the event is fired.
-    pub fn observe<E: Event, B: Bundle, M>(
-        &mut self,
-        observer: impl IntoObserverSystem<E, B, M>,
-    ) -> &mut Self {
-        self.world
-            .spawn(Observer::new(observer).with_entity(self.entity));
-        self
-    }
 }
 
 /// SAFETY: all components in the archetype must exist in world
@@ -1527,17 +1491,7 @@ unsafe fn trigger_on_replace_and_on_remove_hooks_and_observers(
     bundle_info: &BundleInfo,
 ) {
     deferred_world.trigger_on_replace(archetype, entity, bundle_info.iter_explicit_components());
-    if archetype.has_replace_observer() {
-        deferred_world.trigger_observers(
-            ON_REPLACE,
-            entity,
-            bundle_info.iter_explicit_components(),
-        );
-    }
     deferred_world.trigger_on_remove(archetype, entity, bundle_info.iter_explicit_components());
-    if archetype.has_remove_observer() {
-        deferred_world.trigger_observers(ON_REMOVE, entity, bundle_info.iter_explicit_components());
-    }
 }
 
 const QUERY_MISMATCH_ERROR: &str = "Query does not match the current entity";
@@ -2607,7 +2561,6 @@ unsafe fn remove_bundle_from_archetype(
     archetypes: &mut Archetypes,
     storages: &mut Storages,
     components: &Components,
-    observers: &Observers,
     archetype_id: ArchetypeId,
     bundle_info: &BundleInfo,
     intersection: bool,
@@ -2678,7 +2631,6 @@ unsafe fn remove_bundle_from_archetype(
 
         let new_archetype_id = archetypes.get_id_or_insert(
             components,
-            observers,
             next_table_id,
             next_table_components,
             next_sparse_set_components,
@@ -2729,14 +2681,12 @@ fn sorted_remove<T: Eq + Ord + Copy>(source: &mut Vec<T>, remove: &[T]) {
 pub(crate) unsafe fn take_component<'a>(
     storages: &'a mut Storages,
     components: &Components,
-    removed_components: &mut RemovedComponentEvents,
     component_id: ComponentId,
     entity: Entity,
     location: EntityLocation,
 ) -> OwningPtr<'a> {
     // SAFETY: caller promises component_id to be valid
     let component_info = unsafe { components.get_info_unchecked(component_id) };
-    removed_components.send(component_id, entity);
     match component_info.storage_type() {
         StorageType::Table => {
             let table = &mut storages.tables[location.table_id];

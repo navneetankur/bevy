@@ -16,19 +16,16 @@ compile_error!("bevy_ecs cannot safely compile for a 16-bit platform.");
 pub mod archetype;
 pub mod batching;
 pub mod bundle;
+pub mod event;
 pub mod change_detection;
 pub mod component;
 pub mod entity;
-pub mod event;
 pub mod identifier;
 pub mod intern;
 pub mod label;
-pub mod observer;
 pub mod query;
 #[cfg(feature = "bevy_reflect")]
 pub mod reflect;
-pub mod removal_detection;
-pub mod schedule;
 pub mod storage;
 pub mod system;
 pub mod traversal;
@@ -54,14 +51,7 @@ pub mod prelude {
         change_detection::{DetectChanges, DetectChangesMut, Mut, Ref},
         component::Component,
         entity::{Entity, EntityMapper},
-        event::{Event, EventMutator, EventReader, EventWriter, Events},
-        observer::{Observer, Trigger},
         query::{Added, AnyOf, Changed, Has, Or, QueryBuilder, QueryState, With, Without},
-        removal_detection::RemovedComponents,
-        schedule::{
-            apply_deferred, common_conditions::*, Condition, IntoSystemConfigs, IntoSystemSet,
-            IntoSystemSetConfigs, Schedule, Schedules, SystemSet,
-        },
         system::{
             Commands, Deferred, EntityCommand, EntityCommands, In, IntoSystem, Local, NonSend,
             NonSendMut, ParallelCommands, ParamSet, Query, ReadOnlySystem, Res, ResMut, Resource,
@@ -88,7 +78,6 @@ mod tests {
         system::Resource,
         world::{EntityRef, Mut, World},
     };
-    use bevy_tasks::{ComputeTaskPool, TaskPool};
     use bevy_utils::HashSet;
     use std::num::NonZero;
     use std::{
@@ -96,7 +85,7 @@ mod tests {
         marker::PhantomData,
         sync::{
             atomic::{AtomicUsize, Ordering},
-            Arc, Mutex,
+            Arc,
         },
     };
 
@@ -423,49 +412,6 @@ mod tests {
         assert!(results.contains(&(f, A(456))));
     }
 
-    #[test]
-    fn par_for_each_dense() {
-        ComputeTaskPool::get_or_init(TaskPool::default);
-        let mut world = World::new();
-        let e1 = world.spawn(A(1)).id();
-        let e2 = world.spawn(A(2)).id();
-        let e3 = world.spawn(A(3)).id();
-        let e4 = world.spawn((A(4), B(1))).id();
-        let e5 = world.spawn((A(5), B(1))).id();
-        let results = Arc::new(Mutex::new(Vec::new()));
-        world
-            .query::<(Entity, &A)>()
-            .par_iter(&world)
-            .for_each(|(e, &A(i))| {
-                results.lock().unwrap().push((e, i));
-            });
-        results.lock().unwrap().sort();
-        assert_eq!(
-            &*results.lock().unwrap(),
-            &[(e1, 1), (e2, 2), (e3, 3), (e4, 4), (e5, 5)]
-        );
-    }
-
-    #[test]
-    fn par_for_each_sparse() {
-        ComputeTaskPool::get_or_init(TaskPool::default);
-        let mut world = World::new();
-        let e1 = world.spawn(SparseStored(1)).id();
-        let e2 = world.spawn(SparseStored(2)).id();
-        let e3 = world.spawn(SparseStored(3)).id();
-        let e4 = world.spawn((SparseStored(4), A(1))).id();
-        let e5 = world.spawn((SparseStored(5), A(1))).id();
-        let results = Arc::new(Mutex::new(Vec::new()));
-        world
-            .query::<(Entity, &SparseStored)>()
-            .par_iter(&world)
-            .for_each(|(e, &SparseStored(i))| results.lock().unwrap().push((e, i)));
-        results.lock().unwrap().sort();
-        assert_eq!(
-            &*results.lock().unwrap(),
-            &[(e1, 1), (e2, 2), (e3, 3), (e4, 4), (e5, 5)]
-        );
-    }
 
     #[test]
     fn query_missing_component() {

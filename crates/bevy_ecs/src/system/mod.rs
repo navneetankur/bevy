@@ -108,7 +108,6 @@ mod commands;
 mod exclusive_function_system;
 mod exclusive_system_param;
 mod function_system;
-mod observer_system;
 mod query;
 #[allow(clippy::module_inception)]
 mod system;
@@ -125,7 +124,6 @@ pub use commands::*;
 pub use exclusive_function_system::*;
 pub use exclusive_system_param::*;
 pub use function_system::*;
-pub use observer_system::*;
 pub use query::*;
 pub use system::*;
 pub use system_name::*;
@@ -354,11 +352,6 @@ mod tests {
         entity::{Entities, Entity},
         prelude::AnyOf,
         query::{Added, Changed, Or, With, Without},
-        removal_detection::RemovedComponents,
-        schedule::{
-            apply_deferred, common_conditions::resource_exists, Condition, IntoSystemConfigs,
-            Schedule,
-        },
         system::{
             Commands, In, IntoSystem, Local, NonSend, NonSendMut, ParamSet, Query, Res, ResMut,
             Resource, StaticSystemParam, System, SystemState,
@@ -490,56 +483,6 @@ mod tests {
         run_system(&mut world, query_system);
 
         assert_eq!(*world.resource::<SystemRan>(), SystemRan::Yes);
-    }
-
-    #[test]
-    fn changed_resource_system() {
-        use crate::system::Resource;
-
-        #[derive(Resource)]
-        struct Flipper(bool);
-
-        #[derive(Resource)]
-        struct Added(usize);
-
-        #[derive(Resource)]
-        struct Changed(usize);
-
-        fn incr_e_on_flip(
-            value: Res<Flipper>,
-            mut changed: ResMut<Changed>,
-            mut added: ResMut<Added>,
-        ) {
-            if value.is_added() {
-                added.0 += 1;
-            }
-
-            if value.is_changed() {
-                changed.0 += 1;
-            }
-        }
-
-        let mut world = World::default();
-        world.insert_resource(Flipper(false));
-        world.insert_resource(Added(0));
-        world.insert_resource(Changed(0));
-
-        let mut schedule = Schedule::default();
-
-        schedule.add_systems((incr_e_on_flip, apply_deferred, World::clear_trackers).chain());
-
-        schedule.run(&mut world);
-        assert_eq!(world.resource::<Added>().0, 1);
-        assert_eq!(world.resource::<Changed>().0, 1);
-
-        schedule.run(&mut world);
-        assert_eq!(world.resource::<Added>().0, 1);
-        assert_eq!(world.resource::<Changed>().0, 1);
-
-        world.resource_mut::<Flipper>().0 = true;
-        schedule.run(&mut world);
-        assert_eq!(world.resource::<Added>().0, 1);
-        assert_eq!(world.resource::<Changed>().0, 2);
     }
 
     #[test]
@@ -965,80 +908,6 @@ mod tests {
 
         run_system(&mut world, sys);
         assert_eq!(*world.resource::<SystemRan>(), SystemRan::Yes);
-    }
-
-    #[test]
-    fn removal_tracking() {
-        let mut world = World::new();
-
-        let entity_to_despawn = world.spawn(W(1)).id();
-        let entity_to_remove_w_from = world.spawn(W(2)).id();
-        let spurious_entity = world.spawn_empty().id();
-
-        // Track which entities we want to operate on
-        #[derive(Resource)]
-        struct Despawned(Entity);
-        world.insert_resource(Despawned(entity_to_despawn));
-
-        #[derive(Resource)]
-        struct Removed(Entity);
-        world.insert_resource(Removed(entity_to_remove_w_from));
-
-        // Verify that all the systems actually ran
-        #[derive(Default, Resource)]
-        struct NSystems(usize);
-        world.insert_resource(NSystems::default());
-
-        // First, check that removal detection is triggered if and only if we despawn an entity with the correct component
-        world.entity_mut(entity_to_despawn).despawn();
-        world.entity_mut(spurious_entity).despawn();
-
-        fn validate_despawn(
-            mut removed_i32: RemovedComponents<W<i32>>,
-            despawned: Res<Despawned>,
-            mut n_systems: ResMut<NSystems>,
-        ) {
-            assert_eq!(
-                removed_i32.read().collect::<Vec<_>>(),
-                &[despawned.0],
-                "despawning causes the correct entity to show up in the 'RemovedComponent' system parameter."
-            );
-
-            n_systems.0 += 1;
-        }
-
-        run_system(&mut world, validate_despawn);
-
-        // Reset the trackers to clear the buffer of removed components
-        // Ordinarily, this is done in a system added by MinimalPlugins
-        world.clear_trackers();
-
-        // Then, try removing a component
-        world.spawn(W(3));
-        world.spawn(W(4));
-        world.entity_mut(entity_to_remove_w_from).remove::<W<i32>>();
-
-        fn validate_remove(
-            mut removed_i32: RemovedComponents<W<i32>>,
-            despawned: Res<Despawned>,
-            removed: Res<Removed>,
-            mut n_systems: ResMut<NSystems>,
-        ) {
-            // The despawned entity from the previous frame was
-            // double buffered so we now have it in this system as well.
-            assert_eq!(
-                removed_i32.read().collect::<Vec<_>>(),
-                &[despawned.0, removed.0],
-                "removing a component causes the correct entity to show up in the 'RemovedComponent' system parameter."
-            );
-
-            n_systems.0 += 1;
-        }
-
-        run_system(&mut world, validate_remove);
-
-        // Verify that both systems actually ran
-        assert_eq!(world.resource::<NSystems>().0, 2);
     }
 
     #[test]
@@ -1748,34 +1617,5 @@ mod tests {
         assert!(!info1.second_flag);
         assert!(info2.first_flag);
         assert!(!info2.second_flag);
-    }
-
-    #[test]
-    fn test_combinator_clone() {
-        let mut world = World::new();
-        #[derive(Resource)]
-        struct A;
-        #[derive(Resource)]
-        struct B;
-        #[derive(Resource, PartialEq, Eq, Debug)]
-        struct C(i32);
-
-        world.insert_resource(A);
-        world.insert_resource(C(0));
-        let mut sched = Schedule::default();
-        sched.add_systems(
-            (
-                |mut res: ResMut<C>| {
-                    res.0 += 1;
-                },
-                |mut res: ResMut<C>| {
-                    res.0 += 2;
-                },
-            )
-                .distributive_run_if(resource_exists::<A>.or(resource_exists::<B>)),
-        );
-        sched.initialize(&mut world).unwrap();
-        sched.run(&mut world);
-        assert_eq!(world.get_resource(), Some(&C(3)));
     }
 }

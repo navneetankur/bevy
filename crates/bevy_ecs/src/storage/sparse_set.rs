@@ -361,10 +361,6 @@ impl ComponentSparseSet {
             false
         }
     }
-
-    pub(crate) fn check_change_ticks(&mut self, change_tick: Tick) {
-        self.dense.check_change_ticks(change_tick);
-    }
 }
 
 /// A data structure that blends dense and sparse storage
@@ -649,12 +645,6 @@ impl SparseSets {
     pub(crate) fn clear_entities(&mut self) {
         for set in self.sets.values_mut() {
             set.clear();
-        }
-    }
-
-    pub(crate) fn check_change_ticks(&mut self, change_tick: Tick) {
-        for set in self.sets.values_mut() {
-            set.check_change_ticks(change_tick);
         }
     }
 }

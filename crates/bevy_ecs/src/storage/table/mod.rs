@@ -612,16 +612,6 @@ impl Table {
     pub fn is_empty(&self) -> bool {
         self.entities.is_empty()
     }
-
-    /// Call [`Tick::check_tick`] on all of the ticks in the [`Table`]
-    pub(crate) fn check_change_ticks(&mut self, change_tick: Tick) {
-        let len = self.entity_count();
-        for col in self.columns.values_mut() {
-            // SAFETY: `len` is the actual length of the column
-            unsafe { col.check_change_ticks(len, change_tick) };
-        }
-    }
-
     /// Iterates over the [`ThinColumn`]s of the [`Table`].
     pub fn iter_columns(&self) -> impl Iterator<Item = &ThinColumn> {
         self.columns.values()
@@ -771,12 +761,6 @@ impl Tables {
     pub(crate) fn clear(&mut self) {
         for table in &mut self.tables {
             table.clear();
-        }
-    }
-
-    pub(crate) fn check_change_ticks(&mut self, change_tick: Tick) {
-        for table in &mut self.tables {
-            table.check_change_ticks(change_tick);
         }
     }
 }

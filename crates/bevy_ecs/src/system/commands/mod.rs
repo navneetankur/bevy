@@ -2,14 +2,12 @@ mod parallel_scope;
 
 use core::panic::Location;
 
-use super::{Deferred, IntoObserverSystem, IntoSystem, RegisterSystem, Resource};
+use super::{Deferred, IntoSystem, RegisterSystem, Resource};
 use crate::{
     self as bevy_ecs,
     bundle::{Bundle, InsertMode},
     component::{ComponentId, ComponentInfo},
     entity::{Entities, Entity},
-    event::{Event, SendEvent},
-    observer::{Observer, TriggerEvent, TriggerTargets},
     system::{RunSystemWithInput, SystemId},
     world::{
         command_queue::RawCommandQueue, Command, CommandQueue, EntityWorldMut, FromWorld,
@@ -755,49 +753,6 @@ impl<'w, 's> Commands<'w, 's> {
         self.queue(RegisterSystem::new(system, entity));
         SystemId::from_entity(entity)
     }
-
-    /// Sends a "global" [`Trigger`] without any targets. This will run any [`Observer`] of the `event` that
-    /// isn't scoped to specific targets.
-    ///
-    /// [`Trigger`]: crate::observer::Trigger
-    pub fn trigger(&mut self, event: impl Event) {
-        self.queue(TriggerEvent { event, targets: () });
-    }
-
-    /// Sends a [`Trigger`] for the given targets. This will run any [`Observer`] of the `event` that
-    /// watches those targets.
-    ///
-    /// [`Trigger`]: crate::observer::Trigger
-    pub fn trigger_targets(
-        &mut self,
-        event: impl Event,
-        targets: impl TriggerTargets + Send + Sync + 'static,
-    ) {
-        self.queue(TriggerEvent { event, targets });
-    }
-
-    /// Spawns an [`Observer`] and returns the [`EntityCommands`] associated with the entity that stores the observer.
-    pub fn observe<E: Event, B: Bundle, M>(
-        &mut self,
-        observer: impl IntoObserverSystem<E, B, M>,
-    ) -> EntityCommands {
-        self.spawn(Observer::new(observer))
-    }
-
-    /// Sends an arbitrary [`Event`].
-    ///
-    /// This is a convenience method for sending events without requiring an [`EventWriter`].
-    /// ## Performance
-    /// Since this is a command, exclusive world access is used, which means that it will not profit from
-    /// system-level parallelism on supported platforms.
-    /// If these events are performance-critical or very frequently
-    /// sent, consider using a typed [`EventWriter`] instead.
-    ///
-    /// [`EventWriter`]: crate::event::EventWriter
-    pub fn send_event<E: Event>(&mut self, event: E) -> &mut Self {
-        self.queue(SendEvent { event });
-        self
-    }
 }
 
 /// A [`Command`] which gets executed for a given [`Entity`].
@@ -1401,20 +1356,6 @@ impl EntityCommands<'_> {
     pub fn commands(&mut self) -> Commands {
         self.commands.reborrow()
     }
-
-    /// Sends a [`Trigger`] targeting this entity. This will run any [`Observer`] of the `event` that
-    /// watches this entity.
-    ///
-    /// [`Trigger`]: crate::observer::Trigger
-    pub fn trigger(mut self, event: impl Event) -> Self {
-        self.commands.trigger_targets(event, self.entity);
-        self
-    }
-
-    /// Creates an [`Observer`] listening for a trigger of type `T` that targets this entity.
-    pub fn observe<E: Event, B: Bundle, M>(self, system: impl IntoObserverSystem<E, B, M>) -> Self {
-        self.queue(observe(system))
-    }
 }
 
 impl<F> Command for F
@@ -1641,16 +1582,6 @@ fn log_components(entity: Entity, world: &mut World) {
         .map(ComponentInfo::name)
         .collect();
     info!("Entity {entity}: {debug_infos:?}");
-}
-
-fn observe<E: Event, B: Bundle, M>(
-    observer: impl IntoObserverSystem<E, B, M>,
-) -> impl EntityCommand {
-    move |entity, world: &mut World| {
-        if let Some(mut entity) = world.get_entity_mut(entity) {
-            entity.observe(observer);
-        }
-    }
 }
 
 #[cfg(test)]

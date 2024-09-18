@@ -279,11 +279,6 @@ impl<const SEND: bool> ResourceData<SEND> {
             self.data.clear();
         }
     }
-
-    pub(crate) fn check_change_ticks(&mut self, change_tick: Tick) {
-        self.added_ticks.get_mut().check_tick(change_tick);
-        self.changed_ticks.get_mut().check_tick(change_tick);
-    }
 }
 
 /// The backing store for all [`Resource`]s stored in the [`World`].
@@ -375,11 +370,5 @@ impl<const SEND: bool> Resources<SEND> {
                 changed_by: UnsafeCell::new(Location::caller())
             }
         })
-    }
-
-    pub(crate) fn check_change_ticks(&mut self, change_tick: Tick) {
-        for info in self.resources.values_mut() {
-            info.check_change_ticks(change_tick);
-        }
     }
 }

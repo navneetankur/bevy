@@ -9,10 +9,8 @@ use crate::{
     change_detection::{MaybeUnsafeCellLocation, MutUntyped, Ticks, TicksMut},
     component::{ComponentId, ComponentTicks, Components, StorageType, Tick, TickCells},
     entity::{Entities, Entity, EntityLocation},
-    observer::Observers,
     prelude::Component,
     query::{DebugCheckedUnwrap, ReadOnlyQueryData},
-    removal_detection::RemovedComponentEvents,
     storage::{ComponentSparseSet, Storages, Table},
     system::{Res, Resource},
     world::RawCommandQueue,
@@ -238,20 +236,6 @@ impl<'w> UnsafeWorldCell<'w> {
         // SAFETY:
         // - we only access world metadata
         &unsafe { self.world_metadata() }.components
-    }
-
-    /// Retrieves this world's collection of [removed components](RemovedComponentEvents).
-    pub fn removed_components(self) -> &'w RemovedComponentEvents {
-        // SAFETY:
-        // - we only access world metadata
-        &unsafe { self.world_metadata() }.removed_components
-    }
-
-    /// Retrieves this world's [`Observers`] collection.
-    pub(crate) unsafe fn observers(self) -> &'w Observers {
-        // SAFETY:
-        // - we only access world metadata
-        &unsafe { self.world_metadata() }.observers
     }
 
     /// Retrieves this world's [`Bundles`] collection.
@@ -622,14 +606,6 @@ impl<'w> UnsafeWorldCell<'w> {
         // - caller ensures there are no existing mutable references
         // - caller ensures that we have permission to access the queue
         unsafe { (*self.0).command_queue.clone() }
-    }
-
-    /// # Safety
-    /// It is the callers responsibility to ensure that there are no outstanding
-    /// references to `last_trigger_id`.
-    pub(crate) unsafe fn increment_trigger_id(self) {
-        // SAFETY: Caller ensure there are no outstanding references
-        unsafe { (*self.0).last_trigger_id += 1 }
     }
 }
 

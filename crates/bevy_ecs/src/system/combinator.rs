@@ -5,7 +5,6 @@ use crate::{
     component::{ComponentId, Tick},
     prelude::World,
     query::Access,
-    schedule::InternedSystemSet,
     world::unsafe_world_cell::UnsafeWorldCell,
 };
 
@@ -224,12 +223,6 @@ where
     fn check_change_tick(&mut self, change_tick: Tick) {
         self.a.check_change_tick(change_tick);
         self.b.check_change_tick(change_tick);
-    }
-
-    fn default_system_sets(&self) -> Vec<InternedSystemSet> {
-        let mut default_sets = self.a.default_system_sets();
-        default_sets.append(&mut self.b.default_system_sets());
-        default_sets
     }
 
     fn get_last_run(&self) -> Tick {
