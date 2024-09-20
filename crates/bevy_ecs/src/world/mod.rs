@@ -28,7 +28,7 @@ use crate::{
     archetype::{ArchetypeId, ArchetypeRow, Archetypes}, bundle::{Bundle, BundleInfo, BundleInserter, BundleSpawner, Bundles, InsertMode}, change_detection::{MutUntyped, TicksMut}, component::{
         Component, ComponentDescriptor, ComponentHooks, ComponentId, ComponentInfo, ComponentTicks,
         Components, Tick,
-    }, entity::{AllocAtWithoutReplacement, Entities, Entity, EntityHashSet, EntityLocation}, event, query::{DebugCheckedUnwrap, QueryData, QueryEntityError, QueryFilter, QueryState}, storage::{ResourceData, Storages}, system::{boxysystem::IntoBoxySystem, Commands, Res, Resource}, world::command_queue::RawCommandQueue
+    }, entity::{AllocAtWithoutReplacement, Entities, Entity, EntityHashSet, EntityLocation}, query::{DebugCheckedUnwrap, QueryData, QueryEntityError, QueryFilter, QueryState}, storage::{ResourceData, Storages}, system::{Commands, Res, Resource}, world::command_queue::RawCommandQueue
 };
 use bevy_ptr::{OwningPtr, Ptr};
 use bevy_utils::tracing::warn;
@@ -1388,19 +1388,6 @@ impl World {
                 );
             }
         });
-    }
-
-    pub fn send(&mut self, event: impl event::Event + Clone) {
-        event::run_this_event_system(&event, self);
-    }
-
-    pub fn register_event_system<E, Out, F, M>(&mut self, f: F)
-    where
-        E: event::Event + Clone,
-        Out: event::Event + Clone,
-        F: IntoBoxySystem<E, Out, M> + 'static,
-    {
-        event::register_system(self, f);
     }
 
 

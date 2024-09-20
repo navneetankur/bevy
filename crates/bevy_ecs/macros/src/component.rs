@@ -28,8 +28,10 @@ pub fn derive_event(input: TokenStream) -> TokenStream {
         impl #impl_generics #bevy_ecs_path::event::Event for #struct_name #type_generics #where_clause {
             // type Traversal = #bevy_ecs_path::traversal::TraverseNone;
             // const AUTO_PROPAGATE: bool = false;
+            fn run_systems(&self, world: &mut #bevy_ecs_path::world::World) {
+                #bevy_ecs_path::event::run_this_event_system::<&Self>(self, world);
+            }
         }
-
 //         impl #impl_generics #bevy_ecs_path::component::Component for #struct_name #type_generics #where_clause {
 //             const STORAGE_TYPE: #bevy_ecs_path::component::StorageType = #bevy_ecs_path::component::StorageType::SparseSet;
 //         }

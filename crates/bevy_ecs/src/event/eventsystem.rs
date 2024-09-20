@@ -1,40 +1,60 @@
-use core::{any::TypeId, marker::PhantomData};
+// below this mostly copy from FunctionSystem and replace Function with event.
+// So ensure to keep in sync after pull.
+use core::marker::PhantomData;
 use std::borrow::Cow;
 
-use crate::{archetype::{ArchetypeComponentId, ArchetypeGeneration}, component::{ComponentId, Tick}, event::Event, query::Access, system::{check_system_change_tick, ReadOnlySystem, ReadOnlySystemParam, System, SystemParam}, world::{unsafe_world_cell::UnsafeWorldCell, DeferredWorld, World, WorldId}};
+use crate::{
+    archetype::{ArchetypeComponentId, ArchetypeGeneration},
+    component::{ComponentId, Tick},
+    query::Access,
+    system::{
+        check_system_change_tick, IsFunctionSystem, ReadOnlySystem, ReadOnlySystemParam, System,
+        SystemIn, SystemInput, SystemMeta, SystemParam, SystemParamFunction,
+    },
+    world::{unsafe_world_cell::UnsafeWorldCell, DeferredWorld, World, WorldId},
+};
 
-use super::{IsFunctionSystem, SystemMeta, SystemParamFunction};
+use super::Event;
 
-pub trait IntoBoxySystem<In, Out: Event, Marker>: Sized {
-    /// The type of [`System`] that this instance converts into.
+pub trait IntoEventSystem<In: SystemInput, Out, Marker>: Sized {
     type System: System<In = In, Out = Box<dyn Event>>;
-
-    /// Turns this value into its corresponding [`System`].
     fn into_system(this: Self) -> Self::System;
-
-    /// Get the [`TypeId`] of the [`System`] produced after calling [`into_system`](`IntoSystem::into_system`).
-    #[inline]
-    fn system_type_id(&self) -> TypeId {
-        TypeId::of::<Self::System>()
-    }
 }
-pub struct BoxyFunctionSystem<Marker, F>
+pub struct EventSystem<Marker, F>
 where
     F: SystemParamFunction<Marker>,
 {
     func: F,
-    world_id: Option<WorldId>,
     pub(crate) param_state: Option<<F::Param as SystemParam>::State>,
     pub(crate) system_meta: SystemMeta,
+    world_id: Option<WorldId>,
     archetype_generation: ArchetypeGeneration,
     // NOTE: PhantomData<fn()-> T> gives this safe Send/Sync impls
     marker: PhantomData<fn() -> Marker>,
 }
-impl<Marker, F> System for BoxyFunctionSystem<Marker, F>
+impl<Marker, F> IntoEventSystem<F::In, F::Out, (IsFunctionSystem, Marker)> for F
 where
     Marker: 'static,
     F: SystemParamFunction<Marker>,
-    F::Out: Event + Clone,
+    F::Out: Event,
+{
+    type System = EventSystem<Marker, F>;
+    fn into_system(func: Self) -> Self::System {
+        EventSystem {
+            func,
+            param_state: None,
+            system_meta: SystemMeta::new::<F>(),
+            world_id: None,
+            archetype_generation: ArchetypeGeneration::initial(),
+            marker: PhantomData,
+        }
+    }
+}
+impl<Marker, F> System for EventSystem<Marker, F>
+where
+    Marker: 'static,
+    F: SystemParamFunction<Marker>,
+    F::Out: Event,
 {
     type In = F::In;
     type Out = Box<dyn Event>;
@@ -56,7 +76,7 @@ where
 
     #[inline]
     fn is_send(&self) -> bool {
-        self.system_meta.is_send
+        self.system_meta.is_send()
     }
 
     #[inline]
@@ -66,11 +86,15 @@ where
 
     #[inline]
     fn has_deferred(&self) -> bool {
-        self.system_meta.has_deferred
+        self.system_meta.has_deferred()
     }
 
     #[inline]
-    unsafe fn run_unsafe(&mut self, input: Self::In, world: UnsafeWorldCell) -> Self::Out  {
+    unsafe fn run_unsafe(
+        &mut self,
+        input: SystemIn<'_, Self>,
+        world: UnsafeWorldCell,
+    ) -> Self::Out {
         #[cfg(feature = "trace")]
         let _span_guard = self.system_meta.system_span.enter();
 
@@ -83,7 +107,7 @@ where
         //   will ensure that there are no data access conflicts.
         let params = unsafe {
             F::Param::get_param(
-                self.param_state.as_mut().expect("probably not initialized"),
+                self.param_state.as_mut().expect(PARAM_MESSAGE),
                 &self.system_meta,
                 world,
                 change_tick,
@@ -96,13 +120,13 @@ where
 
     #[inline]
     fn apply_deferred(&mut self, world: &mut World) {
-        let param_state = self.param_state.as_mut().expect("probably not initialized");
+        let param_state = self.param_state.as_mut().expect(PARAM_MESSAGE);
         F::Param::apply(param_state, &self.system_meta, world);
     }
 
     #[inline]
     fn queue_deferred(&mut self, world: DeferredWorld) {
-        let param_state = self.param_state.as_mut().expect("probably not initialized");
+        let param_state = self.param_state.as_mut().expect(PARAM_MESSAGE);
         F::Param::queue(param_state, &self.system_meta, world);
     }
 
@@ -151,28 +175,13 @@ where
         self.system_meta.last_run = last_run;
     }
 }
-unsafe impl<Marker, F> ReadOnlySystem for BoxyFunctionSystem<Marker, F>
+/// SAFETY: `F`'s param is [`ReadOnlySystemParam`], so this system will only read from the world.
+unsafe impl<Marker, F> ReadOnlySystem for EventSystem<Marker, F>
 where
     Marker: 'static,
     F: SystemParamFunction<Marker>,
     F::Param: ReadOnlySystemParam,
-    F::Out: Event + Clone,
-{}
-impl<Marker, F> IntoBoxySystem<F::In, F::Out, (IsFunctionSystem, Marker)> for F
-where
-    Marker: 'static,
-    F: SystemParamFunction<Marker>,
-    F::Out: Clone + Event,
+    F::Out: Event,
 {
-    type System = BoxyFunctionSystem<Marker, F>;
-    fn into_system(func: Self) -> Self::System {
-        BoxyFunctionSystem {
-            func,
-            param_state: None,
-            system_meta: SystemMeta::new::<F>(),
-            world_id: None,
-            archetype_generation: ArchetypeGeneration::initial(),
-            marker: PhantomData,
-        }
-    }
 }
+const PARAM_MESSAGE: &'static str = "System's param_state was not found. Did you forget to initialize this system before running it?";
