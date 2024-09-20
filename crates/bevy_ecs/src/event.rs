@@ -45,15 +45,25 @@ where
     I: SystemInput + 'static,
     I::Inner<'a>: Copy,
 {
-    world.init_resource::<RegisteredSystems<I>>();
-    world.resource_scope(
-        |world: &mut World, mut systems: Mut<RegisteredSystems<I>>| {
-            for system in &mut systems.v {
-                let new_event = system.v.run(event, world);
-                new_event.run_systems(world);
-            }
-        },
-    );
+    //don't forget to put it back.
+    let Some(mut systems) = world.remove_resource::<RegisteredSystems<I>>() else {return};
+    for system in &mut systems.v {
+        let new_event = system.v.run(event, world);
+        new_event.run_systems(world);
+    }
+    debug_assert!(!world.contains_resource::<RegisteredSystems<I>>());
+    world.insert_resource(systems);
+
+
+    // world.init_resource::<RegisteredSystems<I>>();
+    // world.resource_scope(
+    //     |world: &mut World, mut systems: Mut<RegisteredSystems<I>>| {
+    //         for system in &mut systems.v {
+    //             let new_event = system.v.run(event, world);
+    //             new_event.run_systems(world);
+    //         }
+    //     },
+    // );
 }
 impl<E: SystemInput> Default for RegisteredSystems<E> {
     fn default() -> Self {
