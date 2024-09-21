@@ -8,7 +8,7 @@ struct C1;
 #[derive(Resource, Clone, Copy, Event)]
 struct R1(u8);
 
-#[derive(Resource, Clone, Copy, Event)]
+#[derive(Resource, Event)]
 struct R2(u8);
 
 
