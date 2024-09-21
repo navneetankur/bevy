@@ -1,4 +1,4 @@
-mod eventsystem;
+pub mod eventsystem;
 use core::any::TypeId;
 use crate::{self as bevy_ecs, system::{SystemInput, SystemParamFunction}};
 pub use bevy_ecs_macros::Event;
@@ -21,11 +21,13 @@ pub struct RegisteredSystems<E: SystemInput>{
 pub trait Event: Send + Sync + 'static {
     fn run_systems(&self, world: &mut World);
 }
+impl Event for (){ fn run_systems(&self, _: &mut World) {} }
 pub fn register_system<I, Out, F, M>(world: &mut World, f: F)
 where
     I: SystemInput + 'static,
     Out: Event,
-    F: SystemParamFunction<M, In = I, Out = Out>,
+    // F: SystemParamFunction<M, In = I, Out = Out>,
+    F: IntoEventSystem<I, Out, M> + 'static,
     M: 'static,
 {
     world.init_resource::<RegisteredSystems<I>>();
@@ -91,7 +93,8 @@ impl World {
     where
         I: SystemInput + Copy + 'static,
         Out: Event,
-        F: SystemParamFunction<M, In = I, Out = Out>,
+        // F: SystemParamFunction<M, In = I, Out = Out>,
+        F: IntoEventSystem<I,Out, M> + 'static,
         M: 'static,
     {
         register_system(self, f);
