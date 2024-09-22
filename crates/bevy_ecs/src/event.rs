@@ -10,7 +10,7 @@ use smallvec::SmallVec;
 use crate::{system::BoxedSystem, world::World};
 
 pub struct EventInSystem<E: SystemInput> {
-    pub v: BoxedSystem<E, Box<dyn Event>>,
+    pub v: BoxedSystem<E, ()>,
     pub tid: TypeId,
 }
 #[derive(Resource)]
@@ -19,10 +19,8 @@ pub struct RegisteredSystems<E: SystemInput>{
     pub tid: TypeIdMap<usize>,
 }
 
-pub trait Event: Send + Sync + 'static {
-    fn run_systems(self: Box<Self>, world: &mut World);
-}
-impl Event for (){ fn run_systems(self: Box<()>, _: &mut World) {} }
+pub trait Event: Send + Sync + SystemInput + 'static {}
+impl Event for (){}
 pub fn register_system<I, Out, F, M>(world: &mut World, f: F)
 where
     I: SystemInput + 'static,
@@ -31,6 +29,7 @@ where
     M: 'static,
 {
     world.init_resource::<RegisteredSystems<I>>();
+    world.init_resource::<EventInMotion>();
     world.resource_scope(|world: &mut World, mut systems: Mut<RegisteredSystems<I>>| {
         let tid = TypeId::of::<F>();
         if systems.tid.contains_key(&tid) { return };
@@ -42,47 +41,46 @@ where
         systems.tid.insert(tid, index);
     });
 }
+#[derive(Resource, Default)]
+struct EventInMotion(Vec<TypeId>);
 pub fn run_this_event_system<'a, E>(event: E, world: &mut World)
 where 
     E: Event,
     E: SystemInput<Inner<'static> = E>,
 {
+    {
+        let mut in_motion = world.resource_mut::<EventInMotion>();
+        if in_motion.0.contains(&TypeId::of::<E>()) {
+            panic!("Recursive event {:?}", type_name::<E>());
+        } else {
+            in_motion.0.push(TypeId::of::<E>());
+        }
+    }
     run_for_ref_event(world, &event);
-
-     // don't forget to put it back.
-     let Some(mut systems) = world.remove_resource::<RegisteredSystems<E>>() else {return};
-     let mut systems_iter = systems.v.iter_mut();
-     let Some(system) = systems_iter.next() else { return };
-     let new_event = system.v.run(event, world);
-     new_event.run_systems(world);
-     debug_assert!(systems_iter.next().is_none(), "Only one system can take value {:?}", type_name::<E>());
-     debug_assert!(!world.contains_resource::<RegisteredSystems<E>>());
-     world.insert_resource(systems);
+    run_for_val_event(world, event);
+    {
+        let mut in_motion = world.resource_mut::<EventInMotion>();
+        let index = in_motion.0.iter().position(|x| *x == TypeId::of::<E>()).unwrap();
+        in_motion.0.swap_remove(index);
+    }
 }
-pub fn run_this_boxed_event_system<'a, E>(event: Box<E>, world: &mut World)
-where 
-    E: Event,
-    E: SystemInput<Inner<'static> = E>,
-{
-    run_for_ref_event(world, event.as_ref());
 
-     // don't forget to put it back.
-     let Some(mut systems) = world.remove_resource::<RegisteredSystems<E>>() else {return};
-     let mut systems_iter = systems.v.iter_mut();
-     let Some(system) = systems_iter.next() else { return };
-     let new_event = system.v.run(*event, world);
-     new_event.run_systems(world);
-     debug_assert!(systems_iter.next().is_none(), "Only one system can take value {:?}", type_name::<E>());
-     debug_assert!(!world.contains_resource::<RegisteredSystems<E>>());
-     world.insert_resource(systems);
+fn run_for_val_event<E>(world: &mut World, event: E) where E: Event, E: SystemInput<Inner<'static> = E> {
+    // don't forget to put it back.
+    let Some(mut systems) = world.remove_resource::<RegisteredSystems<E>>() else {return};
+    let mut systems_iter = systems.v.iter_mut();
+    let Some(system) = systems_iter.next() else { return };
+    system.v.run(event, world);
+    debug_assert!(systems_iter.next().is_none(), "Only one system can take value {:?}", type_name::<E>());
+    debug_assert!(!world.contains_resource::<RegisteredSystems<E>>());
+    world.insert_resource(systems);
 }
 
 fn run_for_ref_event<E>(world: &mut World, event: &E) where E: Event, E: SystemInput<Inner<'static> = E> {
     //don't forget to put it back.
     let Some(mut systems) = world.remove_resource::<RegisteredSystems<&E>>() else {return};
     for system in &mut systems.v {
-        let new_event = system.v.run(event, world);
-        new_event.run_systems(world);
+        system.v.run(event, world);
     }
     debug_assert!(!world.contains_resource::<RegisteredSystems<&E>>());
     world.insert_resource(systems);

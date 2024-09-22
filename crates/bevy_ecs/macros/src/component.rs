@@ -26,9 +26,9 @@ pub fn derive_event(input: TokenStream) -> TokenStream {
 
     TokenStream::from(quote! {
         impl #impl_generics #bevy_ecs_path::event::Event for #struct_name #type_generics #where_clause {
-            fn run_systems(self: Box<Self>, world: &mut #bevy_ecs_path::world::World) {
-                #bevy_ecs_path::event::run_this_boxed_event_system::<Self>(self, world);
-            }
+            // fn run_systems(self: Box<Self>, world: &mut #bevy_ecs_path::world::World) {
+            //     #bevy_ecs_path::event::run_this_boxed_event_system::<Self>(self, world);
+            // }
         }
         impl #impl_generics #bevy_ecs_path::event::SystemInput for #struct_name #type_generics #where_clause {
             type Param<'i> = Self;

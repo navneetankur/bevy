@@ -8,7 +8,7 @@ use crate::{
     component::{ComponentId, Tick},
     query::Access,
     system::{
-        check_system_change_tick, IsFunctionSystem, ReadOnlySystem, ReadOnlySystemParam, System,
+        check_system_change_tick, IsFunctionSystem, System,
         SystemIn, SystemInput, SystemMeta, SystemParam, SystemParamFunction,
     },
     world::{unsafe_world_cell::UnsafeWorldCell, DeferredWorld, World, WorldId},
@@ -17,7 +17,7 @@ use crate::{
 use super::Event;
 
 pub trait IntoEventSystem<In: SystemInput, Out, Marker>: Sized {
-    type System: System<In = In, Out = Box<dyn Event>>;
+    type System: System<In = In, Out = ()>;
     fn into_system(this: Self) -> Self::System;
 }
 pub struct EventSystem<Marker, F>
@@ -37,6 +37,7 @@ where
     Marker: 'static,
     F: SystemParamFunction<Marker>,
     F::Out: Event,
+    F::Out: SystemInput<Inner<'static> = F::Out>,
 {
     type System = EventSystem<Marker, F>;
     fn into_system(func: Self) -> Self::System {
@@ -55,9 +56,10 @@ where
     Marker: 'static,
     F: SystemParamFunction<Marker>,
     F::Out: Event,
+    F::Out: SystemInput<Inner<'static> = F::Out>,
 {
     type In = F::In;
-    type Out = Box<dyn Event>;
+    type Out = ();
 
     #[inline]
     fn name(&self) -> Cow<'static, str> {
@@ -92,30 +94,50 @@ where
     #[inline]
     unsafe fn run_unsafe(
         &mut self,
-        input: SystemIn<'_, Self>,
-        world: UnsafeWorldCell,
+        _: SystemIn<'_, Self>,
+        _: UnsafeWorldCell,
     ) -> Self::Out {
-        #[cfg(feature = "trace")]
-        let _span_guard = self.system_meta.system_span.enter();
-
-        let change_tick = world.increment_change_tick();
-
+        unimplemented!("no parallelism use run");
+    }
+    /// Runs the system with the given input in the world.
+    ///
+    /// For [read-only](ReadOnlySystem) systems, see [`run_readonly`], which can be called using `&World`.
+    ///
+    /// Unlike [`System::run_unsafe`], this will apply deferred parameters *immediately*.
+    ///
+    /// [`run_readonly`]: ReadOnlySystem::run_readonly
+    fn run(&mut self, input: SystemIn<'_, Self>, world: &mut World) -> Self::Out {
+        let world_cell = world.as_unsafe_world_cell();
+        self.update_archetype_component_access(world_cell);
         // SAFETY:
-        // - The caller has invoked `update_archetype_component_access`, which will panic
-        //   if the world does not match.
-        // - All world accesses used by `F::Param` have been registered, so the caller
-        //   will ensure that there are no data access conflicts.
-        let params = unsafe {
-            F::Param::get_param(
-                self.param_state.as_mut().expect(PARAM_MESSAGE),
-                &self.system_meta,
-                world,
-                change_tick,
-            )
-        };
-        let out = self.func.run(input, params);
-        self.system_meta.last_run = change_tick;
-        Box::new(out)
+        // - We have exclusive access to the entire world.
+        // - `update_archetype_component_access` has been called.
+        let out = { {
+            let this = &mut *self;
+            #[cfg(feature = "trace")]
+            let _span_guard = this.system_meta.system_span.enter();
+
+            let change_tick = world_cell.increment_change_tick();
+
+            // SAFETY:
+            // - The caller has invoked `update_archetype_component_access`, which will panic
+            //   if the world does not match.
+            // - All world accesses used by `F::Param` have been registered, so the caller
+            //   will ensure that there are no data access conflicts.
+            let params = unsafe {
+                F::Param::get_param(
+                    this.param_state.as_mut().expect(PARAM_MESSAGE),
+                    &this.system_meta,
+                    world_cell,
+                    change_tick,
+                )
+            };
+            let out = this.func.run(input, params);
+            this.system_meta.last_run = change_tick;
+            out
+        } };
+        self.apply_deferred(world);
+        super::run_this_event_system(out, world);
     }
 
     #[inline]
@@ -176,12 +198,11 @@ where
     }
 }
 /// SAFETY: `F`'s param is [`ReadOnlySystemParam`], so this system will only read from the world.
-unsafe impl<Marker, F> ReadOnlySystem for EventSystem<Marker, F>
-where
-    Marker: 'static,
-    F: SystemParamFunction<Marker>,
-    F::Param: ReadOnlySystemParam,
-    F::Out: Event,
-{
-}
+// unsafe impl<Marker, F> ReadOnlySystem for EventSystem<Marker, F>
+// where
+//     Marker: 'static,
+//     F: SystemParamFunction<Marker>,
+//     F::Param: ReadOnlySystemParam,
+//     F::Out: Event,
+// {}
 const PARAM_MESSAGE: &'static str = "System's param_state was not found. Did you forget to initialize this system before running it?";
