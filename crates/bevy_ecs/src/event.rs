@@ -29,6 +29,7 @@ where
     M: 'static,
 {
     world.init_resource::<RegisteredSystems<I>>();
+    #[cfg(debug_assertions)]
     world.init_resource::<EventInMotion>();
     world.resource_scope(|world: &mut World, mut systems: Mut<RegisteredSystems<I>>| {
         let tid = TypeId::of::<F>();
@@ -48,6 +49,7 @@ where
     E: Event,
     E: SystemInput<Inner<'static> = E>,
 {
+    #[cfg(debug_assertions)]
     {
         let mut in_motion = world.resource_mut::<EventInMotion>();
         if in_motion.0.contains(&TypeId::of::<E>()) {
@@ -58,6 +60,7 @@ where
     }
     run_for_ref_event(world, &event);
     run_for_val_event(world, event);
+    #[cfg(debug_assertions)]
     {
         let mut in_motion = world.resource_mut::<EventInMotion>();
         let index = in_motion.0.iter().position(|x| *x == TypeId::of::<E>()).unwrap();
