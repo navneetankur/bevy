@@ -26,15 +26,17 @@ pub fn derive_event(input: TokenStream) -> TokenStream {
 
     TokenStream::from(quote! {
         impl #impl_generics #bevy_ecs_path::event::Event for #struct_name #type_generics #where_clause {
-            // type Traversal = #bevy_ecs_path::traversal::TraverseNone;
-            // const AUTO_PROPAGATE: bool = false;
-            fn run_systems(&self, world: &mut #bevy_ecs_path::world::World) {
-                #bevy_ecs_path::event::run_this_event_system::<&Self>(self, world);
+            fn run_systems(self: Box<Self>, world: &mut #bevy_ecs_path::world::World) {
+                #bevy_ecs_path::event::run_this_boxed_event_system::<Self>(self, world);
             }
         }
-//         impl #impl_generics #bevy_ecs_path::component::Component for #struct_name #type_generics #where_clause {
-//             const STORAGE_TYPE: #bevy_ecs_path::component::StorageType = #bevy_ecs_path::component::StorageType::SparseSet;
-//         }
+        impl #impl_generics #bevy_ecs_path::event::SystemInput for #struct_name #type_generics #where_clause {
+            type Param<'i> = Self;
+            type Inner<'i> = Self;
+            fn wrap(this: Self::Inner<'_>) -> Self::Param<'_> {
+                this
+            }
+        }
     })
 }
 
