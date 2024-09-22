@@ -1,6 +1,6 @@
 pub mod eventsystem;
 use core::any::TypeId;
-use crate::{self as bevy_ecs, system::{SystemInput, SystemParamFunction}};
+use crate::{self as bevy_ecs, system::SystemInput};
 pub use bevy_ecs_macros::Event;
 use eventsystem::IntoEventSystem;
 use crate::{system::{Resource, System}, world::Mut};
