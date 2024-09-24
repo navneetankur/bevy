@@ -1,4 +1,5 @@
 pub mod eventsystem;
+pub mod eventslicer;
 use core::any::{type_name, TypeId};
 use crate::{self as bevy_ecs};
 pub use crate::system::SystemInput;
