@@ -14,7 +14,7 @@ use crate::{
     world::{unsafe_world_cell::UnsafeWorldCell, DeferredWorld, World, WorldId},
 };
 
-use super::Event;
+use super::{OptionEvent};
 
 pub trait IntoEventSystem<In: SystemInput, Out, Marker>: Sized {
     type System: System<In = In, Out = ()>;
@@ -36,8 +36,8 @@ impl<Marker, F> IntoEventSystem<F::In, F::Out, (IsFunctionSystem, Marker)> for F
 where
     Marker: 'static,
     F: SystemParamFunction<Marker>,
-    F::Out: Event,
-    F::Out: SystemInput<Inner<'static> = F::Out>,
+    F::Out: OptionEvent,
+    <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event: SystemInput<Inner<'static> = <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event>,
 {
     type System = EventSystem<Marker, F>;
     fn into_system(func: Self) -> Self::System {
@@ -55,8 +55,8 @@ impl<Marker, F> System for EventSystem<Marker, F>
 where
     Marker: 'static,
     F: SystemParamFunction<Marker>,
-    F::Out: Event,
-    F::Out: SystemInput<Inner<'static> = F::Out>,
+    F::Out: OptionEvent,
+    <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event: SystemInput<Inner<'static> = <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event>,
 {
     type In = F::In;
     type Out = ();
@@ -137,7 +137,8 @@ where
             out
         } };
         self.apply_deferred(world);
-        super::run_this_event_system(out, world);
+        let Some(event) = out.into_option() else {return};
+        super::run_this_event_system(event, world);
     }
 
     #[inline]

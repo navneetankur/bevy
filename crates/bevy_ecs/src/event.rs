@@ -21,6 +21,19 @@ pub struct RegisteredSystems<E: SystemInput>{
 
 pub trait Event: Send + Sync + SystemInput + 'static {}
 impl Event for (){}
+pub trait OptionEvent {
+    type Event: Event;
+    fn into_option(self) -> Option<Self::Event>;
+}
+impl<E: Event> OptionEvent for E {
+    type Event = Self;
+    fn into_option(self) -> Option<Self::Event> { Some(self) }
+}
+impl<E: Event> OptionEvent for Option<E> {
+    type Event = E;
+    fn into_option(self) -> Option<Self::Event> { self }
+}
+
 pub fn register_system<I, Out, F, M>(world: &mut World, f: F)
 where
     I: SystemInput + 'static,
