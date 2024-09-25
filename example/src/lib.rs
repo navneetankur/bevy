@@ -42,6 +42,8 @@ fn inc_on_c1(_: C1, mut to: ResMut<R1>) {
 
 #[derive(Event)]
 struct E1(u8);
+#[derive(Event)]
+struct E2(u8);
 
 #[test]
 fn slicer_event_system() {
@@ -62,6 +64,26 @@ fn count_in_slice(events: &[E1]) {
         assert_eq!(e.0, i);
         i += 1;
     }
+}
+#[test]
+fn slicer_forward_event_system() {
+    let mut world = World::new();
+    world.register_event_system(send_slice_event_forwarding);
+    world.register_event_system(e1_call_counter1);
+    world.init_resource::<Counter>();
+    world.send(E2(0));
+    let counter = world.resource::<Counter>();
+    assert_eq!(counter.0, 10);
+}
+fn send_slice_event_forwarding(_: E2, mut slicer: EventSlicer<E1, true>) {
+    for i in 0..10 {
+        slicer.push(E1(i));
+    }
+}
+#[derive(Resource, Default)]
+struct Counter(u8);
+fn e1_call_counter1(_: &E1, mut count: ResMut<Counter>) {
+    count.0 += 1;
 }
 
 }

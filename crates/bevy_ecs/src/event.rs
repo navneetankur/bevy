@@ -82,7 +82,11 @@ where
     }
 }
 
-fn run_for_val_event<E>(world: &mut World, event: E) where E: Event, E: SystemInput<Inner<'static> = E> {
+fn run_for_val_event<E>(world: &mut World, event: E)
+where
+    E: Event,
+    E: SystemInput<Inner<'static> = E>
+{
     // don't forget to put it back.
     let Some(mut systems) = world.remove_resource::<RegisteredSystems<E>>() else {return};
     let mut systems_iter = systems.v.iter_mut();
@@ -93,7 +97,11 @@ fn run_for_val_event<E>(world: &mut World, event: E) where E: Event, E: SystemIn
     world.insert_resource(systems);
 }
 
-fn run_for_ref_event<E>(world: &mut World, event: &E) where E: Event, E: SystemInput<Inner<'static> = E> {
+fn run_for_ref_event<E>(world: &mut World, event: &E)
+where
+    E: Event,
+    // E: SystemInput<Inner<'static> = E>
+{
     //don't forget to put it back.
     let Some(mut systems) = world.remove_resource::<RegisteredSystems<&E>>() else {return};
     for system in &mut systems.v {
