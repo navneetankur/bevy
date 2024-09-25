@@ -1,4 +1,5 @@
 pub mod eventsystem;
+pub mod exclusiveeventsystem;
 pub mod eventslicer;
 mod optionevent;
 pub use optionevent::OptionEvent;
@@ -131,4 +132,3 @@ impl<E: Event> SystemInput for &E {
         this
     }
 }
-

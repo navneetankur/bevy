@@ -2,7 +2,7 @@ use core::ops::{Deref, DerefMut};
 
 use bevy_utils::synccell::SyncCell;
 
-use crate::{event::RegisteredSystems, system::SystemParam, world::World};
+use crate::{event::RegisteredSystems, system::{ReadOnlySystemParam, SystemParam}, world::World};
 
 use super::{run_this_event_system, Event, SystemInput};
 
@@ -53,6 +53,10 @@ where
         }
     }
 }
+unsafe impl<'a, E: Event, const FORWARD: bool> ReadOnlySystemParam for EventSlicer<'a, E, FORWARD>
+where 
+    E: SystemInput<Inner<'static> = E>,
+{}
 
 impl<E: Event> SystemInput for &[E] {
     type Param<'i> = &'i [E];

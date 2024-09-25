@@ -86,4 +86,18 @@ fn e1_call_counter1(_: &E1, mut count: ResMut<Counter>) {
     count.0 += 1;
 }
 
+#[test]
+fn exclusive_systems_test() {
+    let mut world = World::new();
+    world.init_resource::<Counter>();
+    world.register_event_system(iam_exclusive);
+    world.send(E1(0));
+    let c = world.resource::<Counter>();
+    assert_eq!(c.0, 14);
+}
+fn iam_exclusive(e1: &E1, w: &mut World) {
+    let mut c = w.resource_mut::<Counter>();
+    c.0 = 14;
+}
+
 }
