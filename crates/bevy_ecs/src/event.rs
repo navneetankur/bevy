@@ -1,5 +1,7 @@
 pub mod eventsystem;
 pub mod eventslicer;
+mod optionevent;
+pub use optionevent::OptionEvent;
 use core::any::{type_name, TypeId};
 use crate::{self as bevy_ecs};
 pub use crate::system::SystemInput;
@@ -21,30 +23,6 @@ pub struct RegisteredSystems<E: SystemInput>{
 }
 
 pub trait Event: Send + Sync + SystemInput + 'static {}
-pub trait OptionEvent {
-    fn run(self, world: &mut World);
-}
-impl<E: Event> OptionEvent for E
-where 
-    E: SystemInput<Inner<'static> = E>,
-{
-    fn run(self, world: &mut World) {
-        run_this_event_system::<E>(self, world);
-    }
-}
-impl<E: Event> OptionEvent for Option<E>
-where 
-    E: SystemInput<Inner<'static> = E>,
-{
-    fn run(self, world: &mut World) {
-        if let Some(event) = self {
-            run_this_event_system::<E>(event, world);
-        }
-    }
-}
-impl OptionEvent for (){
-    fn run(self, _: &mut World) {}
-}
 
 pub fn register_system<I, Out, F, M>(world: &mut World, f: F)
 where
