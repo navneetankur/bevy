@@ -37,7 +37,7 @@ where
     Marker: 'static,
     F: SystemParamFunction<Marker>,
     F::Out: OptionEvent,
-    <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event: SystemInput<Inner<'static> = <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event>,
+    // <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event: SystemInput<Inner<'static> = <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event>,
 {
     type System = EventSystem<Marker, F>;
     fn into_system(func: Self) -> Self::System {
@@ -56,7 +56,7 @@ where
     Marker: 'static,
     F: SystemParamFunction<Marker>,
     F::Out: OptionEvent,
-    <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event: SystemInput<Inner<'static> = <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event>,
+    // <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event: SystemInput<Inner<'static> = <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event>,
 {
     type In = F::In;
     type Out = ();
@@ -137,8 +137,7 @@ where
             out
         } };
         self.apply_deferred(world);
-        let Some(event) = out.into_option() else {return};
-        super::run_this_event_system(event, world);
+        out.run(world);
     }
 
     #[inline]
