@@ -41,3 +41,12 @@ impl<O1: OptionEvent, O2: OptionEvent, O3: OptionEvent> OptionEvent for (O1, O2,
         self.2.run(world);
     }
 }
+impl<O1: OptionEvent, O2: OptionEvent, O3: OptionEvent, O4: OptionEvent> OptionEvent for (O1, O2, O3, O4)
+{
+    fn run(self, world: &mut World) {
+        self.0.run(world);
+        self.1.run(world);
+        self.2.run(world);
+        self.3.run(world);
+    }
+}
