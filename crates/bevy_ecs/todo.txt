@@ -1,0 +1,1 @@
+- bevy is going to allow disabling change detection for component. So there is no need to remove change detection from it right now. Do it if bevy doesn't do it.
