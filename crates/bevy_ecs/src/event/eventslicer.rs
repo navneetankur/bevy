@@ -6,7 +6,7 @@ use crate::{event::RegisteredSystems, system::{ReadOnlySystemParam, SystemParam}
 
 use super::{run_this_event_system, Event, SystemInput};
 
-pub struct EventSlicer<'s, E: Event, const FORWARD: bool = false>(&'s mut Vec<E>);
+pub struct EventSlicer<'s, E: Event, const FORWARD: bool = true>(&'s mut Vec<E>);
 impl<'s, E: Event, const F: bool> EventSlicer<'s, E, F> {
     fn new(v: &'s mut Vec<E>) -> Self { Self(v) }
 }
@@ -45,7 +45,7 @@ where
         run_for_slice_event(world, state.get());
         if FORWARD {
            for event in state.get().drain(..) {
-               run_this_event_system(event, world);
+               run_this_event_system::<false, E>(event, world);
            }
         }
         else {

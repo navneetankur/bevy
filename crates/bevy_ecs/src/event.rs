@@ -48,7 +48,7 @@ where
 }
 #[derive(Resource, Default)]
 struct EventInMotion(Vec<TypeId>);
-pub fn run_this_event_system<'a, E>(event: E, world: &mut World)
+pub fn run_this_event_system<'a, const SLICE: bool, E>(event: E, world: &mut World)
 where 
     E: Event,
     E: SystemInput<Inner<'static> = E>,
@@ -63,6 +63,7 @@ where
         }
     }
     run_for_ref_event(world, &event);
+    if SLICE { run_for_slice_event(world, &event); }
     run_for_val_event(world, event);
     #[cfg(debug_assertions)]
     {
@@ -84,6 +85,7 @@ where
     system.v.run(event, world);
     debug_assert!(systems_iter.next().is_none(), "Only one system can take value {:?}", type_name::<E>());
     debug_assert!(!world.contains_resource::<RegisteredSystems<E>>());
+    // put back
     world.insert_resource(systems);
 }
 
@@ -98,6 +100,22 @@ where
         system.v.run(event, world);
     }
     debug_assert!(!world.contains_resource::<RegisteredSystems<&E>>());
+    // put back
+    world.insert_resource(systems);
+}
+fn run_for_slice_event<E>(world: &mut World, event: &E)
+where
+    E: Event,
+    // E: SystemInput<Inner<'static> = E>
+{
+    //don't forget to put it back.
+    let Some(mut systems) = world.remove_resource::<RegisteredSystems<&[E]>>() else {return};
+    let event_slice = core::slice::from_ref(event);
+    for system in &mut systems.v {
+        system.v.run(event_slice, world);
+    }
+    debug_assert!(!world.contains_resource::<RegisteredSystems<&[E]>>());
+    // put back
     world.insert_resource(systems);
 }
 impl<E: SystemInput> Default for RegisteredSystems<E> {
@@ -112,7 +130,7 @@ impl World {
     where
         E: Event + SystemInput<Inner<'static> = E>,
     {
-        run_this_event_system::<E>(event, self);
+        run_this_event_system::<true, E>(event, self);
     }
 
     pub fn register_event_system<I, Out, F, M>(&mut self, f: F)

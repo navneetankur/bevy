@@ -10,7 +10,7 @@ where
     E: SystemInput<Inner<'static> = E>,
 {
     fn run(self, world: &mut World) {
-        run_this_event_system::<E>(self, world);
+        run_this_event_system::<true, E>(self, world);
     }
 }
 impl<E: Event> OptionEvent for Option<E>
@@ -19,7 +19,7 @@ where
 {
     fn run(self, world: &mut World) {
         if let Some(event) = self {
-            run_this_event_system::<E>(event, world);
+            run_this_event_system::<true, E>(event, world);
         }
     }
 }
