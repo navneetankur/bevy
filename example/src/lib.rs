@@ -53,12 +53,12 @@ fn slicer_event_system() {
     world.send(E1(0));
 }
 
-fn send_slice_event(_: E1, mut slicer: EventSlicer<E1>) {
+fn send_slice_event(_: E1, mut slicer: EventSlicer<E2>) {
     for i in 0..10 {
-        slicer.push(E1(i));
+        slicer.push(E2(i));
     }
 }
-fn count_in_slice(events: &[E1]) {
+fn count_in_slice(events: &[E2]) {
     let mut i = 0;
     for e in events {
         assert_eq!(e.0, i);
