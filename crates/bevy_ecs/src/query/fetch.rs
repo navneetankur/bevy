@@ -1439,6 +1439,96 @@ impl<T> Copy for WriteFetch<'_, T> {}
 /// `update_component_access` adds a `With` filter for a component.
 /// This is sound because `matches_component_set` returns whether the set contains that component.
 unsafe impl<'__w, T: Component> WorldQuery for &'__w mut T {
+    type Item<'w> = &'w mut T;
+    type Fetch<'w> = WriteFetch<'w, T>;
+    type State = ComponentId;
+
+    fn shrink<'wlong: 'wshort, 'wshort>(item: Self::Item<'wlong>) -> Self::Item<'wshort> {
+        item
+    }
+
+    fn shrink_fetch<'wlong: 'wshort, 'wshort>(fetch: Self::Fetch<'wlong>) -> Self::Fetch<'wshort> {
+        fetch
+    }
+
+    #[inline]
+    unsafe fn init_fetch<'w>(
+        world: UnsafeWorldCell<'w>,
+        component_id: &ComponentId,
+        last_run: Tick,
+        this_run: Tick,
+    ) -> WriteFetch<'w, T> {
+        <Mut<T> as WorldQuery>::init_fetch(world, component_id, last_run, this_run)
+    }
+
+    const IS_DENSE: bool = <Mut<T> as WorldQuery>::IS_DENSE;
+
+    #[inline]
+    unsafe fn set_archetype<'w>(
+        fetch: &mut WriteFetch<'w, T>,
+        component_id: &ComponentId,
+        archetype: &'w Archetype,
+        table: &'w Table,
+    ) {
+        <Mut<T> as WorldQuery>::set_archetype(fetch, component_id, archetype, table)
+    }
+
+    #[inline]
+    unsafe fn set_table<'w>(
+        fetch: &mut WriteFetch<'w, T>,
+        component_id: &ComponentId,
+        table: &'w Table,
+    ) {
+        <Mut<T> as WorldQuery>::set_table(fetch, component_id, table)
+    }
+
+    #[inline(always)]
+    unsafe fn fetch<'w>(
+        fetch: &mut Self::Fetch<'w>,
+        entity: Entity,
+        table_row: TableRow,
+    ) -> Self::Item<'w> {
+        <Mut<T> as WorldQuery>::fetch(fetch, entity, table_row).value
+    }
+
+    fn update_component_access(
+        component_id: &ComponentId,
+        access: &mut FilteredAccess<ComponentId>,
+    ) {
+        <Mut<T> as WorldQuery>::update_component_access(component_id, access)
+    }
+
+    fn init_state(world: &mut World) -> ComponentId {
+        <Mut<T> as WorldQuery>::init_state(world)
+    }
+
+    fn get_state(components: &Components) -> Option<Self::State> {
+        <Mut<T> as WorldQuery>::get_state(components)
+    }
+
+    fn matches_component_set(
+        state: &ComponentId,
+        set_contains_id: &impl Fn(ComponentId) -> bool,
+    ) -> bool {
+        <Mut<T> as WorldQuery>::matches_component_set(state, set_contains_id)
+    }
+}
+
+/// SAFETY: access of `&T` is a subset of `&mut T`
+unsafe impl<'__w, T: Component> QueryData for &'__w mut T {
+    type ReadOnly = &'__w T;
+}
+
+/// When `Mut<T>` is used in a query, it will be converted to `Ref<T>` when transformed into its read-only form, providing access to change detection methods.
+///
+/// By contrast `&mut T` will result in a `Mut<T>` item in mutable form to record mutations, but result in a bare `&T` in read-only form.
+///
+/// SAFETY:
+/// `fetch` accesses a single component mutably.
+/// This is sound because `update_component_access` and `update_archetype_component_access` add write access for that component and panic when appropriate.
+/// `update_component_access` adds a `With` filter for a component.
+/// This is sound because `matches_component_set` returns whether the set contains that component.
+unsafe impl<'__w, T: Component> WorldQuery for Mut<'__w, T> {
     type Item<'w> = Mut<'w, T>;
     type Fetch<'w> = WriteFetch<'w, T>;
     type State = ComponentId;
@@ -1598,111 +1688,6 @@ unsafe impl<'__w, T: Component> WorldQuery for &'__w mut T {
         set_contains_id: &impl Fn(ComponentId) -> bool,
     ) -> bool {
         set_contains_id(state)
-    }
-}
-
-/// SAFETY: access of `&T` is a subset of `&mut T`
-unsafe impl<'__w, T: Component> QueryData for &'__w mut T {
-    type ReadOnly = &'__w T;
-}
-
-/// When `Mut<T>` is used in a query, it will be converted to `Ref<T>` when transformed into its read-only form, providing access to change detection methods.
-///
-/// By contrast `&mut T` will result in a `Mut<T>` item in mutable form to record mutations, but result in a bare `&T` in read-only form.
-///
-/// SAFETY:
-/// `fetch` accesses a single component mutably.
-/// This is sound because `update_component_access` and `update_archetype_component_access` add write access for that component and panic when appropriate.
-/// `update_component_access` adds a `With` filter for a component.
-/// This is sound because `matches_component_set` returns whether the set contains that component.
-unsafe impl<'__w, T: Component> WorldQuery for Mut<'__w, T> {
-    type Item<'w> = Mut<'w, T>;
-    type Fetch<'w> = WriteFetch<'w, T>;
-    type State = ComponentId;
-
-    // Forwarded to `&mut T`
-    fn shrink<'wlong: 'wshort, 'wshort>(item: Mut<'wlong, T>) -> Mut<'wshort, T> {
-        <&mut T as WorldQuery>::shrink(item)
-    }
-
-    fn shrink_fetch<'wlong: 'wshort, 'wshort>(fetch: Self::Fetch<'wlong>) -> Self::Fetch<'wshort> {
-        fetch
-    }
-
-    #[inline]
-    // Forwarded to `&mut T`
-    unsafe fn init_fetch<'w>(
-        world: UnsafeWorldCell<'w>,
-        state: &ComponentId,
-        last_run: Tick,
-        this_run: Tick,
-    ) -> WriteFetch<'w, T> {
-        <&mut T as WorldQuery>::init_fetch(world, state, last_run, this_run)
-    }
-
-    // Forwarded to `&mut T`
-    const IS_DENSE: bool = <&mut T as WorldQuery>::IS_DENSE;
-
-    #[inline]
-    // Forwarded to `&mut T`
-    unsafe fn set_archetype<'w>(
-        fetch: &mut WriteFetch<'w, T>,
-        state: &ComponentId,
-        archetype: &'w Archetype,
-        table: &'w Table,
-    ) {
-        <&mut T as WorldQuery>::set_archetype(fetch, state, archetype, table);
-    }
-
-    #[inline]
-    // Forwarded to `&mut T`
-    unsafe fn set_table<'w>(fetch: &mut WriteFetch<'w, T>, state: &ComponentId, table: &'w Table) {
-        <&mut T as WorldQuery>::set_table(fetch, state, table);
-    }
-
-    #[inline(always)]
-    // Forwarded to `&mut T`
-    unsafe fn fetch<'w>(
-        // Rust complains about lifetime bounds not matching the trait if I directly use `WriteFetch<'w, T>` right here.
-        // But it complains nowhere else in the entire trait implementation.
-        fetch: &mut Self::Fetch<'w>,
-        entity: Entity,
-        table_row: TableRow,
-    ) -> Mut<'w, T> {
-        <&mut T as WorldQuery>::fetch(fetch, entity, table_row)
-    }
-
-    // NOT forwarded to `&mut T`
-    fn update_component_access(
-        &component_id: &ComponentId,
-        access: &mut FilteredAccess<ComponentId>,
-    ) {
-        // Update component access here instead of in `<&mut T as WorldQuery>` to avoid erroneously referencing
-        // `&mut T` in error message.
-        assert!(
-            !access.access().has_component_read(component_id),
-            "Mut<{}> conflicts with a previous access in this query. Mutable component access mut be unique.",
-            std::any::type_name::<T>(),
-        );
-        access.add_component_write(component_id);
-    }
-
-    // Forwarded to `&mut T`
-    fn init_state(world: &mut World) -> ComponentId {
-        <&mut T as WorldQuery>::init_state(world)
-    }
-
-    // Forwarded to `&mut T`
-    fn get_state(components: &Components) -> Option<ComponentId> {
-        <&mut T as WorldQuery>::get_state(components)
-    }
-
-    // Forwarded to `&mut T`
-    fn matches_component_set(
-        state: &ComponentId,
-        set_contains_id: &impl Fn(ComponentId) -> bool,
-    ) -> bool {
-        <&mut T as WorldQuery>::matches_component_set(state, set_contains_id)
     }
 }
 
