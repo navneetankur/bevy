@@ -1488,7 +1488,9 @@ unsafe impl<'__w, T: Component> WorldQuery for &'__w mut T {
         entity: Entity,
         table_row: TableRow,
     ) -> Self::Item<'w> {
-        <Mut<T> as WorldQuery>::fetch(fetch, entity, table_row).value
+        let mut q = <Mut<T> as WorldQuery>::fetch(fetch, entity, table_row);
+        let _ = q.as_mut();
+        return q.value;
     }
 
     fn update_component_access(
