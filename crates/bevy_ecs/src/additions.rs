@@ -1,3 +1,4 @@
+pub mod player;
 use crate::system::{Res, ResMut, Resource, SystemParam};
 
 unsafe impl<'a, T: Resource> SystemParam for &'a T {
