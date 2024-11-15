@@ -8,8 +8,7 @@ use crate::{
     component::{ComponentId, Tick},
     query::Access,
     system::{
-        check_system_change_tick, IsFunctionSystem, System,
-        SystemIn, SystemInput, SystemMeta, SystemParam, SystemParamFunction,
+        check_system_change_tick, FunctionSystem, IntoSystem, IsFunctionSystem, System, SystemIn, SystemInput, SystemMeta, SystemParam, SystemParamFunction
     },
     world::{unsafe_world_cell::UnsafeWorldCell, DeferredWorld, World, WorldId},
 };
@@ -24,13 +23,7 @@ pub struct EventSystem<Marker, F>
 where
     F: SystemParamFunction<Marker>,
 {
-    func: F,
-    pub(crate) param_state: Option<<F::Param as SystemParam>::State>,
-    pub(crate) system_meta: SystemMeta,
-    world_id: Option<WorldId>,
-    archetype_generation: ArchetypeGeneration,
-    // NOTE: PhantomData<fn()-> T> gives this safe Send/Sync impls
-    marker: PhantomData<fn() -> Marker>,
+    inner: FunctionSystem<Marker, F>,
 }
 impl<Marker, F> IntoEventSystem<F::In, F::Out, (IsFunctionSystem, Marker)> for F
 where
@@ -41,14 +34,8 @@ where
 {
     type System = EventSystem<Marker, F>;
     fn into_system(func: Self) -> Self::System {
-        EventSystem {
-            func,
-            param_state: None,
-            system_meta: SystemMeta::new::<F>(),
-            world_id: None,
-            archetype_generation: ArchetypeGeneration::initial(),
-            marker: PhantomData,
-        }
+        let inner = IntoSystem::into_system(func);
+        return EventSystem { inner };
     }
 }
 impl<Marker, F> System for EventSystem<Marker, F>
@@ -63,32 +50,32 @@ where
 
     #[inline]
     fn name(&self) -> Cow<'static, str> {
-        self.system_meta.name.clone()
+        self.inner.name()
     }
 
     #[inline]
     fn component_access(&self) -> &Access<ComponentId> {
-        self.system_meta.component_access_set.combined_access()
+        self.inner.component_access()
     }
 
     #[inline]
     fn archetype_component_access(&self) -> &Access<ArchetypeComponentId> {
-        &self.system_meta.archetype_component_access
+        self.inner.archetype_component_access()
     }
 
     #[inline]
     fn is_send(&self) -> bool {
-        self.system_meta.is_send()
+        self.inner.is_send()
     }
 
     #[inline]
     fn is_exclusive(&self) -> bool {
-        false
+        self.inner.is_exclusive()
     }
 
     #[inline]
     fn has_deferred(&self) -> bool {
-        self.system_meta.has_deferred()
+        self.inner.has_deferred()
     }
 
     #[inline]
@@ -107,102 +94,39 @@ where
     ///
     /// [`run_readonly`]: ReadOnlySystem::run_readonly
     fn run(&mut self, input: SystemIn<'_, Self>, world: &mut World) -> Self::Out {
-        let world_cell = world.as_unsafe_world_cell();
-        self.update_archetype_component_access(world_cell);
-        // SAFETY:
-        // - We have exclusive access to the entire world.
-        // - `update_archetype_component_access` has been called.
-        let out = { {
-            let this = &mut *self;
-            #[cfg(feature = "trace")]
-            let _span_guard = this.system_meta.system_span.enter();
-
-            let change_tick = world_cell.increment_change_tick();
-
-            // SAFETY:
-            // - The caller has invoked `update_archetype_component_access`, which will panic
-            //   if the world does not match.
-            // - All world accesses used by `F::Param` have been registered, so the caller
-            //   will ensure that there are no data access conflicts.
-            let params = unsafe {
-                F::Param::get_param(
-                    this.param_state.as_mut().expect(PARAM_MESSAGE),
-                    &this.system_meta,
-                    world_cell,
-                    change_tick,
-                )
-            };
-            let out = this.func.run(input, params);
-            this.system_meta.last_run = change_tick;
-            out
-        } };
-        self.apply_deferred(world);
+        let out = self.inner.run(input, world);
         out.run(world);
     }
 
     #[inline]
     fn apply_deferred(&mut self, world: &mut World) {
-        let param_state = self.param_state.as_mut().expect(PARAM_MESSAGE);
-        F::Param::apply(param_state, &self.system_meta, world);
+        self.inner.apply_deferred(world);
     }
 
     #[inline]
     fn queue_deferred(&mut self, world: DeferredWorld) {
-        let param_state = self.param_state.as_mut().expect(PARAM_MESSAGE);
-        F::Param::queue(param_state, &self.system_meta, world);
+        self.inner.queue_deferred(world);
     }
 
     #[inline]
     fn initialize(&mut self, world: &mut World) {
-        if let Some(id) = self.world_id {
-            assert_eq!(
-                id,
-                world.id(),
-                "System built with a different world than the one it was added to.",
-            );
-        } else {
-            self.world_id = Some(world.id());
-            self.param_state = Some(F::Param::init_state(world, &mut self.system_meta));
-        }
-        self.system_meta.last_run = world.change_tick().relative_to(Tick::MAX);
+        self.inner.initialize(world);
     }
 
     fn update_archetype_component_access(&mut self, world: UnsafeWorldCell) {
-        assert_eq!(self.world_id, Some(world.id()), "Encountered a mismatched World. A System cannot be used with Worlds other than the one it was initialized with.");
-        let archetypes = world.archetypes();
-        let old_generation =
-            std::mem::replace(&mut self.archetype_generation, archetypes.generation());
-
-        for archetype in &archetypes[old_generation..] {
-            let param_state = self.param_state.as_mut().unwrap();
-            // SAFETY: The assertion above ensures that the param_state was initialized from `world`.
-            unsafe { F::Param::new_archetype(param_state, archetype, &mut self.system_meta) };
-        }
+        self.inner.update_archetype_component_access(world);
     }
 
     #[inline]
     fn check_change_tick(&mut self, change_tick: Tick) {
-        check_system_change_tick(
-            &mut self.system_meta.last_run,
-            change_tick,
-            self.system_meta.name.as_ref(),
-        );
+        self.inner.check_change_tick(change_tick);
     }
 
     fn get_last_run(&self) -> Tick {
-        self.system_meta.last_run
+        self.inner.get_last_run()
     }
 
     fn set_last_run(&mut self, last_run: Tick) {
-        self.system_meta.last_run = last_run;
+        self.inner.set_last_run(last_run);
     }
 }
-/// SAFETY: `F`'s param is [`ReadOnlySystemParam`], so this system will only read from the world.
-// unsafe impl<Marker, F> ReadOnlySystem for EventSystem<Marker, F>
-// where
-//     Marker: 'static,
-//     F: SystemParamFunction<Marker>,
-//     F::Param: ReadOnlySystemParam,
-//     F::Out: Event,
-// {}
-const PARAM_MESSAGE: &'static str = "System's param_state was not found. Did you forget to initialize this system before running it?";
