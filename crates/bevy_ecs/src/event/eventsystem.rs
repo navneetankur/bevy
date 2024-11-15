@@ -1,16 +1,13 @@
-// below this mostly copy from FunctionSystem and replace Function with event.
-// So ensure to keep in sync after pull.
-use core::marker::PhantomData;
 use std::borrow::Cow;
 
 use crate::{
-    archetype::{ArchetypeComponentId, ArchetypeGeneration},
+    archetype::{ArchetypeComponentId},
     component::{ComponentId, Tick},
     query::Access,
     system::{
-        check_system_change_tick, FunctionSystem, IntoSystem, IsFunctionSystem, System, SystemIn, SystemInput, SystemMeta, SystemParam, SystemParamFunction
+        FunctionSystem, IntoSystem, IsFunctionSystem, System, SystemIn, SystemInput, SystemParamFunction
     },
-    world::{unsafe_world_cell::UnsafeWorldCell, DeferredWorld, World, WorldId},
+    world::{unsafe_world_cell::UnsafeWorldCell, DeferredWorld, World},
 };
 
 use super::{OptionEvent};
