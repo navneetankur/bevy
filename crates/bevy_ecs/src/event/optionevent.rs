@@ -26,27 +26,22 @@ where
 impl OptionEvent for (){
     fn run(self, _: &mut World) {}
 }
-impl<O1: OptionEvent, O2: OptionEvent> OptionEvent for (O1, O2)
-{
-    fn run(self, world: &mut World) {
-        self.0.run(world);
-        self.1.run(world);
+macro_rules! impl_option_event_tuple {
+    ($($param: ident),*) => {
+        impl<$($param: OptionEvent,)*> OptionEvent for ($($param,)*) {
+            fn run(self, world: &mut World) {
+                #[allow(non_snake_case)]
+                let ($($param,)*) = self;
+                $(
+                    $param.run(world);
+                )*
+            }
+        }
     }
 }
-impl<O1: OptionEvent, O2: OptionEvent, O3: OptionEvent> OptionEvent for (O1, O2, O3)
-{
-    fn run(self, world: &mut World) {
-        self.0.run(world);
-        self.1.run(world);
-        self.2.run(world);
-    }
-}
-impl<O1: OptionEvent, O2: OptionEvent, O3: OptionEvent, O4: OptionEvent> OptionEvent for (O1, O2, O3, O4)
-{
-    fn run(self, world: &mut World) {
-        self.0.run(world);
-        self.1.run(world);
-        self.2.run(world);
-        self.3.run(world);
-    }
-}
+
+impl_option_event_tuple!(O1);
+impl_option_event_tuple!(O1, O2);
+impl_option_event_tuple!(O1, O2, O3);
+impl_option_event_tuple!(O1, O2, O3, O4);
+impl_option_event_tuple!(O1, O2, O3, O4, O5);
