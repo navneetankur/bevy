@@ -1,5 +1,5 @@
 pub mod player;
-use crate::system::{Res, ResMut, Resource, SystemParam};
+use crate::system::{ReadOnlySystemParam, Res, ResMut, Resource, SystemParam};
 
 unsafe impl<'a, T: Resource> SystemParam for &'a T {
     type State = <Res<'a, T> as SystemParam>::State;
@@ -20,6 +20,8 @@ unsafe impl<'a, T: Resource> SystemParam for &'a T {
         return p.value;
     }
 }
+// SAFETY: Res only reads a single World resource
+unsafe impl<'a, T: Resource> ReadOnlySystemParam for &'a T {}
 
 unsafe impl<'a, T: Resource> SystemParam for &'a mut T {
     type State = <ResMut<'a, T> as SystemParam>::State;

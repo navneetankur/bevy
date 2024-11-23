@@ -5,6 +5,8 @@ use super::{run_this_event_system, Event, SystemInput};
 pub trait OptionEvent {
     fn run(self, world: &mut World);
 }
+impl OptionEvent for (){ fn run(self, _: &mut World) {} }
+
 impl<E: Event> OptionEvent for E
 where 
     E: SystemInput<Inner<'static> = E>,
@@ -18,13 +20,9 @@ where
     E: SystemInput<Inner<'static> = E>,
 {
     fn run(self, world: &mut World) {
-        if let Some(event) = self {
-            run_this_event_system::<true, E>(event, world);
-        }
+        let Some(event) = self else {return};
+        event.run(world);
     }
-}
-impl OptionEvent for (){
-    fn run(self, _: &mut World) {}
 }
 macro_rules! impl_option_event_tuple {
     ($($param: ident),*) => {
