@@ -45,6 +45,8 @@ where
         run_for_slice_event(world, state.get());
         if FORWARD {
            for event in state.get().drain(..) {
+               // todo optimization: get the systems and run one it
+               // instead of getting event multiple times and hitting hashmap in world.
                run_this_event_system::<false, E>(event, world);
            }
         }
