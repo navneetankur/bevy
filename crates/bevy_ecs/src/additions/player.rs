@@ -1,3 +1,5 @@
+use core::ops::{Deref, DerefMut};
+
 use crate::{archetype::Archetype, component::Tick, query::{QueryData, QueryState, ReadOnlyQueryData, With}, system::{init_query_param, ReadOnlySystemParam, SystemMeta, SystemParam}, world::{unsafe_world_cell::UnsafeWorldCell, World}};
 
 pub struct PlayerMarker;
@@ -5,7 +7,7 @@ impl crate::component::Component for PlayerMarker {
     const STORAGE_TYPE: crate::component::StorageType = crate::component::StorageType::Table;
 }
 
-pub struct Player<'w, Q: QueryData>(pub Q::Item<'w>);
+pub struct Player<'w, Q: QueryData>(Q::Item<'w>);
 unsafe impl<'w, 's, D: ReadOnlyQueryData + 'static> ReadOnlySystemParam
     for Player<'w, D>
 { }
@@ -50,4 +52,14 @@ unsafe impl<D: QueryData + 'static> SystemParam for Player<'_, D> {
         }.unwrap();
         return Player(q);
     }
+}
+
+impl<'w, Q: QueryData> Player<'w, Q> {
+}
+impl<'w, Q: QueryData> Deref for Player<'w, Q> {
+    type Target = Q::Item<'w>;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+impl<'w, Q: QueryData> DerefMut for Player<'w, Q> {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
