@@ -21,7 +21,6 @@ pub struct EventInSystem<E: SystemInput> {
 }
 pub struct RegisteredSystems<E: SystemInput>{
     pub v: SmallVec<[EventInSystem<E>; 1]>,
-    pub tid: TypeIdMap<usize>,
 }
 // pub trait IRegisteredSystem {
 //     fn as_registered_systems<E: SystemInput>(&mut self) -> &mut RegisteredSystems<E>;
@@ -46,16 +45,31 @@ where
     let mut systems = world.remove_event_system::<I>().unwrap_or_default();
 
     let tid = TypeId::of::<F>();
-    if systems.tid.contains_key(&tid) { return };
+    #[cfg(debug_assertions)]
+    {
+        for system in &systems.v {
+            assert_ne!(system.tid, tid);
+        }
+    }
     let mut system = IntoEventSystem::into_system(f);
     system.initialize(world);
     let system = EventInSystem { v: Box::new(system), tid };
     systems.v.push(system);
-    let index = systems.v.len() - 1;
-    systems.tid.insert(tid, index);
 
     // put back here.
     world.put_back_event_system(systems);
+}
+pub fn unregister_system<I, Out, F, M>(world: &mut World, _: F)
+where
+    I: SystemInput + SmolId + 'static,
+    Out: OptionEvent,
+    F: IntoEventSystem<I, Out, M> + 'static,
+    M: 'static,
+{
+    world.with_event_system::<I>(|_, systems| {
+        let tid = TypeId::of::<F>();
+        systems.v.retain(|s| s.tid != tid);
+    });
 }
 #[derive(Resource, Default)]
 struct EventInMotion(Vec<TypeId>);
@@ -130,7 +144,7 @@ where
 }
 impl<E: SystemInput> Default for RegisteredSystems<E> {
     fn default() -> Self {
-        RegisteredSystems { v: SmallVec::new(), tid: TypeIdMap::default() }
+        RegisteredSystems { v: Default::default()}
     }
 }
 pub trait Eventy: SystemInput{}
@@ -153,6 +167,15 @@ impl World {
         M: 'static,
     {
         register_system(self, f);
+    }
+    pub fn unregister_event_system<I, Out, F, M>(&mut self, f: F)
+    where
+        I: SystemInput + SmolId+ 'static,
+        Out: OptionEvent,
+        F: IntoEventSystem<I,Out, M> + 'static,
+        M: 'static,
+    {
+        unregister_system(self, f);
     }
 
     fn with_event_system<I>(&mut self, f: impl FnOnce(&mut World, &mut RegisteredSystems<I>),)
