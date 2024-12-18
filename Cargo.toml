@@ -29,6 +29,7 @@ redundant_closure_for_method_calls = "warn"
 redundant_else = "warn"
 semicolon_if_nothing_returned = "warn"
 type_complexity = "allow"
+needless_return = "allow"
 undocumented_unsafe_blocks = "warn"
 unwrap_or_default = "warn"
 

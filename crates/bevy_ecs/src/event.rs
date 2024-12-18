@@ -3,12 +3,12 @@ pub mod exclusiveeventsystem;
 pub mod eventslicer;
 mod optionevent;
 pub use optionevent::OptionEvent;
-use core::{any::{type_name, Any, TypeId}, sync::atomic::{AtomicU32, AtomicUsize}};
+use core::{any::{type_name, TypeId}, sync::atomic::AtomicU32};
 use crate::{self as bevy_ecs};
 pub use crate::system::SystemInput;
 pub use bevy_ecs_macros::Event;
 use eventsystem::IntoEventSystem;
-use crate::{system::{Resource, System}, world::Mut};
+use crate::system::{Resource, System};
 use bevy_utils::TypeIdMap;
 use smallvec::SmallVec;
 use crate::{system::BoxedSystem, world::World};
@@ -43,7 +43,7 @@ where
     #[cfg(debug_assertions)]
     world.init_resource::<EventInMotion>();
     // don't forget to put it back.
-    let mut systems = if let Some(systems) = world.remove_event_system::<I>() {systems} else {Default::default()};
+    let mut systems = world.remove_event_system::<I>().unwrap_or_default();
 
     let tid = TypeId::of::<F>();
     if systems.tid.contains_key(&tid) { return };
@@ -155,7 +155,7 @@ impl World {
         register_system(self, f);
     }
 
-    fn with_event_system<'a, I>(&mut self, f: impl FnOnce(&mut World, &mut RegisteredSystems<I>),)
+    fn with_event_system<I>(&mut self, f: impl FnOnce(&mut World, &mut RegisteredSystems<I>),)
     where 
         I: SystemInput + SmolId + 'static,
     {
@@ -165,7 +165,7 @@ impl World {
     }
 
     /// don't forget to put it back.
-    fn remove_event_system<'a, I: SystemInput + SmolId + 'static>(&mut self) -> Option<Box<RegisteredSystems<I>>> {
+    fn remove_event_system<I: SystemInput + SmolId + 'static>(&mut self) -> Option<Box<RegisteredSystems<I>>> {
         let event_systems = &mut self.extras.event_systems;
         let event_index = I::sid();
         if event_systems.len() <= event_index {
@@ -176,7 +176,7 @@ impl World {
         return rv.map(|v| v.downcast().unwrap());
     }
 
-    fn put_back_event_system<'a, I: SystemInput + SmolId + 'static>(&mut self, systems: Box<RegisteredSystems<I>>) {
+    fn put_back_event_system<I: SystemInput + SmolId + 'static>(&mut self, systems: Box<RegisteredSystems<I>>) {
         let event_systems = &mut self.extras.event_systems;
         let event_index = I::sid();
         debug_assert!(event_systems[event_index].is_none());

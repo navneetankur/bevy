@@ -2,7 +2,7 @@ use core::ops::{Deref, DerefMut};
 
 use bevy_utils::synccell::SyncCell;
 
-use crate::{event::RegisteredSystems, system::{ReadOnlySystemParam, SystemParam}, world::World};
+use crate::{system::{ReadOnlySystemParam, SystemParam}, world::World};
 
 use super::{run_this_event_system, Event, SmolId, SystemInput};
 
@@ -10,17 +10,17 @@ pub struct EventSlicer<'s, E: Event, const FORWARD: bool = true>(&'s mut Vec<E>)
 impl<'s, E: Event, const F: bool> EventSlicer<'s, E, F> {
     fn new(v: &'s mut Vec<E>) -> Self { Self(v) }
 }
-impl<'s, E: Event, const FORWARD: bool> Deref for EventSlicer<'s, E, FORWARD> {
+impl<E: Event, const FORWARD: bool> Deref for EventSlicer<'_, E, FORWARD> {
     type Target = Vec<E>;
     fn deref(&self) -> &Self::Target { self.0 }
 }
-impl<'s, E: Event, const FORWARD: bool> DerefMut for EventSlicer<'s, E, FORWARD> {
+impl<E: Event, const FORWARD: bool> DerefMut for EventSlicer<'_, E, FORWARD> {
     fn deref_mut(&mut self) -> &mut Self::Target { self.0 }
 }
 
 
 
-unsafe impl<'a, E: Event, const FORWARD: bool> SystemParam for EventSlicer<'a, E, FORWARD>
+unsafe impl<E: Event, const FORWARD: bool> SystemParam for EventSlicer<'_, E, FORWARD>
 where 
     E: SystemInput<Inner<'static> = E>,
     for<'b> &'b E: SmolId,
@@ -57,7 +57,7 @@ where
         }
     }
 }
-unsafe impl<'a, E: Event, const FORWARD: bool> ReadOnlySystemParam for EventSlicer<'a, E, FORWARD>
+unsafe impl<E: Event, const FORWARD: bool> ReadOnlySystemParam for EventSlicer<'_, E, FORWARD>
 where 
     E: SystemInput<Inner<'static> = E>,
     for<'b> &'b E: SmolId,
