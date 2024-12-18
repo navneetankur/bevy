@@ -91,7 +91,7 @@ where
     E: Event,
     E: SystemInput<Inner<'static> = E>
 {
-    world.with_event_system(|world: &mut World, systems: &mut RegisteredSystems<E>| {
+    world.with_event_system::<E>(|world, systems| {
         let mut systems_iter = systems.v.iter_mut();
         let Some(system) = systems_iter.next() else { return };
         system.v.run(event, world);
@@ -105,7 +105,7 @@ where
     for<'a> &'a E: SmolId,
     // E: SystemInput<Inner<'static> = E>
 {
-    world.with_event_system(|world: &mut World, systems: &mut RegisteredSystems<&E>| {
+    world.with_event_system::<&E>(|world, systems| {
         for system in &mut systems.v {
             system.v.run(event, world);
         }
@@ -119,7 +119,7 @@ where
 {
     //don't forget to put it back.
     // let Some(mut systems) = world.remove_event_system::<&[E]>() else {return;};
-    world.with_event_system(|world: &mut World, systems: &mut RegisteredSystems<&[E]>| {
+    world.with_event_system::<&[E]>(|world, systems| {
         let event_slice = core::slice::from_ref(event);
         for system in &mut systems.v {
             system.v.run(event_slice, world);
@@ -155,10 +155,9 @@ impl World {
         register_system(self, f);
     }
 
-    fn with_event_system<'a, I, F>(&mut self, f: F)
+    fn with_event_system<'a, I>(&mut self, f: impl FnOnce(&mut World, &mut RegisteredSystems<I>),)
     where 
         I: SystemInput + SmolId + 'static,
-        F: FnOnce(&mut World, &mut RegisteredSystems<I>),
     {
         let Some(mut systems) = self.remove_event_system::<I>() else {return};
         f(self, &mut systems);
