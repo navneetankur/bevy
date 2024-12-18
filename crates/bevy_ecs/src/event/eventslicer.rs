@@ -4,7 +4,7 @@ use bevy_utils::synccell::SyncCell;
 
 use crate::{event::RegisteredSystems, system::{ReadOnlySystemParam, SystemParam}, world::World};
 
-use super::{run_this_event_system, Event, SystemInput};
+use super::{run_this_event_system, Event, SmolId, SystemInput};
 
 pub struct EventSlicer<'s, E: Event, const FORWARD: bool = true>(&'s mut Vec<E>);
 impl<'s, E: Event, const F: bool> EventSlicer<'s, E, F> {
@@ -23,6 +23,8 @@ impl<'s, E: Event, const FORWARD: bool> DerefMut for EventSlicer<'s, E, FORWARD>
 unsafe impl<'a, E: Event, const FORWARD: bool> SystemParam for EventSlicer<'a, E, FORWARD>
 where 
     E: SystemInput<Inner<'static> = E>,
+    for<'b> &'b E: SmolId,
+    for<'c> &'c [E]: SmolId,
 {
     type State = SyncCell<Vec<E>>;
 
@@ -58,6 +60,8 @@ where
 unsafe impl<'a, E: Event, const FORWARD: bool> ReadOnlySystemParam for EventSlicer<'a, E, FORWARD>
 where 
     E: SystemInput<Inner<'static> = E>,
+    for<'b> &'b E: SmolId,
+    for<'c> &'c [E]: SmolId,
 {}
 
 impl<E: Event> SystemInput for &[E] {
@@ -65,13 +69,18 @@ impl<E: Event> SystemInput for &[E] {
     type Inner<'i> = &'i [E];
     fn wrap(this: Self::Inner<'_>) -> Self::Param<'_> { this }
 }
-fn run_for_slice_event<E>(world: &mut World, event_slice: &[E]) where E: Event {
+fn run_for_slice_event<E>(world: &mut World, event_slice: &[E])
+where
+    E: Event,
+    for<'b> &'b E: SmolId,
+    for<'c> &'c [E]: SmolId,
+{
     //don't forget to put it back.
-    let Some(mut systems) = world.remove_resource::<RegisteredSystems<&[E]>>() else {return};
+    let Some(mut systems) = world.remove_event_system::<&[E]>() else {return;};
     for system in &mut systems.v {
         system.v.run(event_slice, world);
     }
-    debug_assert!(!world.contains_resource::<RegisteredSystems<&[E]>>());
-    world.insert_resource(systems);
+    //put back
+    world.put_back_event_system(systems);
 }
 

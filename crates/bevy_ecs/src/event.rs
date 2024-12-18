@@ -3,7 +3,7 @@ pub mod exclusiveeventsystem;
 pub mod eventslicer;
 mod optionevent;
 pub use optionevent::OptionEvent;
-use core::any::{type_name, TypeId};
+use core::{any::{type_name, Any, TypeId}, sync::atomic::{AtomicU32, AtomicUsize}};
 use crate::{self as bevy_ecs};
 pub use crate::system::SystemInput;
 pub use bevy_ecs_macros::Event;
@@ -13,38 +13,49 @@ use bevy_utils::TypeIdMap;
 use smallvec::SmallVec;
 use crate::{system::BoxedSystem, world::World};
 
+pub static NEXT_EVENT_ID: AtomicUsize = AtomicUsize::new(0);
+
 pub struct EventInSystem<E: SystemInput> {
     pub v: BoxedSystem<E, ()>,
     pub tid: TypeId,
 }
-#[derive(Resource)]
 pub struct RegisteredSystems<E: SystemInput>{
     pub v: SmallVec<[EventInSystem<E>; 1]>,
     pub tid: TypeIdMap<usize>,
 }
+// pub trait IRegisteredSystem {
+//     fn as_registered_systems<E: SystemInput>(&mut self) -> &mut RegisteredSystems<E>;
+// }
+// impl<E: SystemInput> IRegisteredSystem for RegisteredSystems<E>{
+//     fn as_registered_systems<F: SystemInput>(&mut self) -> &mut RegisteredSystems<F> {self}
+// }
 
-pub trait Event: Send + Sync + SystemInput + 'static {}
+pub trait Event: Send + Sync + SystemInput + SmolId + 'static { }
+pub trait SmolId { fn sid() -> usize; }
 
 pub fn register_system<I, Out, F, M>(world: &mut World, f: F)
 where
-    I: SystemInput + 'static,
+    I: SystemInput + SmolId + 'static,
     Out: OptionEvent,
     F: IntoEventSystem<I, Out, M> + 'static,
     M: 'static,
 {
-    world.init_resource::<RegisteredSystems<I>>();
     #[cfg(debug_assertions)]
     world.init_resource::<EventInMotion>();
-    world.resource_scope(|world: &mut World, mut systems: Mut<RegisteredSystems<I>>| {
-        let tid = TypeId::of::<F>();
-        if systems.tid.contains_key(&tid) { return };
-        let mut system = IntoEventSystem::into_system(f);
-        system.initialize(world);
-        let system = EventInSystem { v: Box::new(system), tid };
-        systems.v.push(system);
-        let index = systems.v.len() - 1;
-        systems.tid.insert(tid, index);
-    });
+    // don't forget to put it back.
+    let mut systems = if let Some(systems) = world.remove_event_system::<I>() {systems} else {Default::default()};
+
+    let tid = TypeId::of::<F>();
+    if systems.tid.contains_key(&tid) { return };
+    let mut system = IntoEventSystem::into_system(f);
+    system.initialize(world);
+    let system = EventInSystem { v: Box::new(system), tid };
+    systems.v.push(system);
+    let index = systems.v.len() - 1;
+    systems.tid.insert(tid, index);
+
+    // put back here.
+    world.put_back_event_system(systems);
 }
 #[derive(Resource, Default)]
 struct EventInMotion(Vec<TypeId>);
@@ -52,6 +63,8 @@ pub fn run_this_event_system<'a, const SLICE: bool, E>(event: E, world: &mut Wor
 where 
     E: Event,
     E: SystemInput<Inner<'static> = E>,
+    for<'b> &'b E: SmolId,
+    for<'c> &'c [E]: SmolId,
 {
     #[cfg(debug_assertions)]
     {
@@ -78,45 +91,42 @@ where
     E: Event,
     E: SystemInput<Inner<'static> = E>
 {
-    // don't forget to put it back.
-    let Some(mut systems) = world.remove_resource::<RegisteredSystems<E>>() else {return};
-    let mut systems_iter = systems.v.iter_mut();
-    let Some(system) = systems_iter.next() else { return };
-    system.v.run(event, world);
-    debug_assert!(systems_iter.next().is_none(), "Only one system can take value {:?}", type_name::<E>());
-    debug_assert!(!world.contains_resource::<RegisteredSystems<E>>());
-    // put back
-    world.insert_resource(systems);
+    world.with_event_system(|world: &mut World, systems: &mut RegisteredSystems<E>| {
+        let mut systems_iter = systems.v.iter_mut();
+        let Some(system) = systems_iter.next() else { return };
+        system.v.run(event, world);
+        debug_assert!(systems_iter.next().is_none(), "Only one system can take value {:?}", type_name::<E>());
+    });
 }
 
 fn run_for_ref_event<E>(world: &mut World, event: &E)
 where
     E: Event,
+    for<'a> &'a E: SmolId,
     // E: SystemInput<Inner<'static> = E>
 {
-    //don't forget to put it back.
-    let Some(mut systems) = world.remove_resource::<RegisteredSystems<&E>>() else {return};
-    for system in &mut systems.v {
-        system.v.run(event, world);
-    }
-    debug_assert!(!world.contains_resource::<RegisteredSystems<&E>>());
-    // put back
-    world.insert_resource(systems);
+    world.with_event_system(|world: &mut World, systems: &mut RegisteredSystems<&E>| {
+        for system in &mut systems.v {
+            system.v.run(event, world);
+        }
+    });
 }
 fn run_for_slice_event<E>(world: &mut World, event: &E)
 where
     E: Event,
+    for<'a> &'a [E]: SmolId,
     // E: SystemInput<Inner<'static> = E>
 {
     //don't forget to put it back.
-    let Some(mut systems) = world.remove_resource::<RegisteredSystems<&[E]>>() else {return};
-    let event_slice = core::slice::from_ref(event);
-    for system in &mut systems.v {
-        system.v.run(event_slice, world);
-    }
-    debug_assert!(!world.contains_resource::<RegisteredSystems<&[E]>>());
+    // let Some(mut systems) = world.remove_event_system::<&[E]>() else {return;};
+    world.with_event_system(|world: &mut World, systems: &mut RegisteredSystems<&[E]>| {
+        let event_slice = core::slice::from_ref(event);
+        for system in &mut systems.v {
+            system.v.run(event_slice, world);
+        }
+    });
     // put back
-    world.insert_resource(systems);
+    // world.put_back_event_system(systems);
 }
 impl<E: SystemInput> Default for RegisteredSystems<E> {
     fn default() -> Self {
@@ -129,19 +139,54 @@ impl World {
     pub fn send<'a,'b,E>(&mut self, event: E)
     where
         E: Event + SystemInput<Inner<'static> = E>,
+        for<'d> &'d E: SmolId,
+        for<'c> &'c [E]: SmolId,
     {
         run_this_event_system::<true, E>(event, self);
     }
 
     pub fn register_event_system<I, Out, F, M>(&mut self, f: F)
     where
-        I: SystemInput + 'static,
+        I: SystemInput + SmolId+ 'static,
         Out: OptionEvent,
         F: IntoEventSystem<I,Out, M> + 'static,
         M: 'static,
     {
         register_system(self, f);
     }
+
+    fn with_event_system<'a, I, F>(&mut self, f: F)
+    where 
+        I: SystemInput + SmolId + 'static,
+        F: FnOnce(&mut World, &mut RegisteredSystems<I>),
+    {
+        let Some(mut systems) = self.remove_event_system::<I>() else {return};
+        f(self, &mut systems);
+        self.put_back_event_system(systems);
+    }
+
+    /// don't forget to put it back.
+    fn remove_event_system<'a, I: SystemInput + SmolId + 'static>(&mut self) -> Option<Box<RegisteredSystems<I>>> {
+        let event_systems = &mut self.extras.event_systems;
+        let event_index = I::sid();
+        if event_systems.len() <= event_index {
+            event_systems.resize_with(event_index + 1, || None);
+            // let rs = RegisteredSystems::<I>::default();
+            // println!("save {} at {}", type_name::<I>(), event_systems.len());
+            // event_systems.push(Some(Box::new(rs)));
+        }
+        // println!("take {} from {}", type_name::<I>(), event_index);
+        let rv = event_systems[event_index].take();
+        return rv.map(|v| v.downcast().unwrap());
+    }
+
+    fn put_back_event_system<'a, I: SystemInput + SmolId + 'static>(&mut self, systems: Box<RegisteredSystems<I>>) {
+        let event_systems = &mut self.extras.event_systems;
+        let event_index = I::sid();
+        debug_assert!(event_systems[event_index].is_none());
+        event_systems[event_index] = Some(systems);
+    }
+
 }
 impl<E: Event> SystemInput for &E {
     type Param<'i> = &'i E;
@@ -149,4 +194,10 @@ impl<E: Event> SystemInput for &E {
     fn wrap(this: Self::Inner<'_>) -> Self::Param<'_> {
         this
     }
+}
+impl<E: Event + SmolId> SmolId for &E {
+    fn sid() -> usize { E::sid() + 1 }
+}
+impl<E: Event + SmolId> SmolId for &[E] {
+    fn sid() -> usize { E::sid() + 2 }
 }

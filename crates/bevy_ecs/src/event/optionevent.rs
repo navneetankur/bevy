@@ -1,6 +1,6 @@
 use crate::world::World;
 
-use super::{run_this_event_system, Event, SystemInput};
+use super::{run_this_event_system, Event, SmolId, SystemInput};
 
 pub trait OptionEvent {
     fn run(self, world: &mut World);
@@ -10,6 +10,8 @@ impl OptionEvent for (){ fn run(self, _: &mut World) {} }
 impl<E: Event> OptionEvent for E
 where 
     E: SystemInput<Inner<'static> = E>,
+    for<'b> &'b E: SmolId,
+    for<'c> &'c [E]: SmolId,
 {
     fn run(self, world: &mut World) {
         run_this_event_system::<true, E>(self, world);
@@ -18,6 +20,8 @@ where
 impl<E: Event> OptionEvent for Option<E>
 where 
     E: SystemInput<Inner<'static> = E>,
+    for<'b> &'b E: SmolId,
+    for<'c> &'c [E]: SmolId,
 {
     fn run(self, world: &mut World) {
         let Some(event) = self else {return};

@@ -30,6 +30,19 @@ pub fn derive_event(input: TokenStream) -> TokenStream {
             //     #bevy_ecs_path::event::run_this_boxed_event_system::<Self>(self, world);
             // }
         }
+        impl #impl_generics #bevy_ecs_path::event::SmolId for #struct_name #type_generics #where_clause {
+            fn sid() -> usize {
+                use std::sync::atomic::Ordering;
+                static mut INDEX: Option<usize> = None;
+                if let Some(index) = unsafe {INDEX} { return index; }
+                else {
+                    // 0 for E, 1 foe &E, w for &[E]
+                    let rv = #bevy_ecs_path::event::NEXT_EVENT_ID.fetch_add(3, Ordering::Relaxed);
+                    unsafe { INDEX = Some(rv); }
+                    return rv;
+                }
+            }
+        }
         impl #impl_generics #bevy_ecs_path::event::SystemInput for #struct_name #type_generics #where_clause {
             type Param<'i> = Self;
             type Inner<'i> = Self;

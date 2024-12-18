@@ -25,7 +25,7 @@ pub use identifier::WorldId;
 pub use spawn_batch::*;
 
 use crate::{
-    archetype::{ArchetypeId, ArchetypeRow, Archetypes}, bundle::{Bundle, BundleInfo, BundleInserter, BundleSpawner, Bundles, InsertMode}, change_detection::{MutUntyped, TicksMut}, component::{
+    additions, archetype::{ArchetypeId, ArchetypeRow, Archetypes}, bundle::{Bundle, BundleInfo, BundleInserter, BundleSpawner, Bundles, InsertMode}, change_detection::{MutUntyped, TicksMut}, component::{
         Component, ComponentDescriptor, ComponentHooks, ComponentId, ComponentInfo, ComponentTicks,
         Components, Tick,
     }, entity::{AllocAtWithoutReplacement, Entities, Entity, EntityHashSet, EntityLocation}, query::{DebugCheckedUnwrap, QueryData, QueryEntityError, QueryFilter, QueryState}, storage::{ResourceData, Storages}, system::{Commands, Res, Resource}, world::command_queue::RawCommandQueue
@@ -112,6 +112,7 @@ pub struct World {
     pub(crate) last_change_tick: Tick,
     pub(crate) last_trigger_id: u32,
     pub(crate) command_queue: RawCommandQueue,
+    pub(crate) extras: additions::Extras,
 }
 
 impl Default for World {
@@ -129,6 +130,7 @@ impl Default for World {
             last_change_tick: Tick::new(0),
             last_trigger_id: 0,
             command_queue: RawCommandQueue::new(),
+            extras: Default::default(),
         };
         world.bootstrap();
         world
