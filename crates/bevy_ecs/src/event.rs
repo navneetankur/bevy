@@ -170,11 +170,8 @@ impl World {
         let event_index = I::sid();
         if event_systems.len() <= event_index {
             event_systems.resize_with(event_index + 1, || None);
-            // let rs = RegisteredSystems::<I>::default();
-            // println!("save {} at {}", type_name::<I>(), event_systems.len());
-            // event_systems.push(Some(Box::new(rs)));
+            return None;
         }
-        // println!("take {} from {}", type_name::<I>(), event_index);
         let rv = event_systems[event_index].take();
         return rv.map(|v| v.downcast().unwrap());
     }
