@@ -13,7 +13,7 @@ use bevy_utils::TypeIdMap;
 use smallvec::SmallVec;
 use crate::{system::BoxedSystem, world::World};
 
-pub static NEXT_EVENT_ID: AtomicUsize = AtomicUsize::new(0);
+pub static NEXT_EVENT_ID: AtomicU32 = AtomicU32::new(0);
 
 pub struct EventInSystem<E: SystemInput> {
     pub v: BoxedSystem<E, ()>,

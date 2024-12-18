@@ -37,7 +37,7 @@ pub fn derive_event(input: TokenStream) -> TokenStream {
                 if let Some(index) = unsafe {INDEX} { return index; }
                 else {
                     // 0 for E, 1 foe &E, w for &[E]
-                    let rv = #bevy_ecs_path::event::NEXT_EVENT_ID.fetch_add(3, Ordering::Relaxed);
+                    let rv = #bevy_ecs_path::event::NEXT_EVENT_ID.fetch_add(3, Ordering::Relaxed) as usize;
                     unsafe { INDEX = Some(rv); }
                     return rv;
                 }
