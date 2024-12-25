@@ -1,46 +1,34 @@
 use std::borrow::Cow;
 
-use crate::{
-    archetype::{ArchetypeComponentId},
-    component::{ComponentId, Tick},
-    query::Access,
-    system::{
-        FunctionSystem, IntoSystem, IsFunctionSystem, System, SystemIn, SystemInput, SystemParamFunction
-    },
-    world::{unsafe_world_cell::UnsafeWorldCell, DeferredWorld, World},
-};
+use crate::{archetype::ArchetypeComponentId, component::{ComponentId, Tick}, query::Access, system::{ExclusiveFunctionSystem, ExclusiveSystemParamFunction, IntoSystem, IsExclusiveFunctionSystem, System, SystemIn}, world::{unsafe_world_cell::UnsafeWorldCell, World}};
 
-use super::{OptionPacket};
+use super::{packetsystem::IntoPacketSystem, OptionPacket};
 
-pub trait IntoEventSystem<In: SystemInput, Out, Marker>: Sized {
-    type System: System<In = In, Out = ()>;
-    fn into_system(this: Self) -> Self::System;
-}
-pub struct EventSystem<Marker, F>
+pub struct ExclusivePacketSystem<Marker, F>
 where
-    F: SystemParamFunction<Marker>,
+    F: ExclusiveSystemParamFunction<Marker>,
 {
-    inner: FunctionSystem<Marker, F>,
+    inner: ExclusiveFunctionSystem<Marker, F>,
 }
-impl<Marker, F> IntoEventSystem<F::In, F::Out, (IsFunctionSystem, Marker)> for F
+impl<Marker, F> IntoPacketSystem<F::In, F::Out, (IsExclusiveFunctionSystem, Marker)> for F
 where
     Marker: 'static,
-    F: SystemParamFunction<Marker>,
+    F: ExclusiveSystemParamFunction<Marker>,
     F::Out: OptionPacket,
-    // <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event: SystemInput<Inner<'static> = <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event>,
 {
-    type System = EventSystem<Marker, F>;
+    type System = ExclusivePacketSystem<Marker, F>;
     fn into_system(func: Self) -> Self::System {
-        let inner = IntoSystem::into_system(func);
-        return EventSystem { inner };
+        ExclusivePacketSystem {
+            inner: IntoSystem::into_system(func)
+        }
     }
 }
-impl<Marker, F> System for EventSystem<Marker, F>
+
+impl<Marker, F> System for ExclusivePacketSystem<Marker, F>
 where
     Marker: 'static,
-    F: SystemParamFunction<Marker>,
+    F: ExclusiveSystemParamFunction<Marker>,
     F::Out: OptionPacket,
-    // <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event: SystemInput<Inner<'static> = <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event>,
 {
     type In = F::In;
     type Out = ();
@@ -78,18 +66,12 @@ where
     #[inline]
     unsafe fn run_unsafe(
         &mut self,
-        _: SystemIn<'_, Self>,
-        _: UnsafeWorldCell,
+        _input: SystemIn<'_, Self>,
+        _world: UnsafeWorldCell,
     ) -> Self::Out {
-        unimplemented!("no parallelism use run");
+        panic!("Cannot run exclusive systems with a shared World reference");
     }
-    /// Runs the system with the given input in the world.
-    ///
-    /// For [read-only](ReadOnlySystem) systems, see [`run_readonly`], which can be called using `&World`.
-    ///
-    /// Unlike [`System::run_unsafe`], this will apply deferred parameters *immediately*.
-    ///
-    /// [`run_readonly`]: ReadOnlySystem::run_readonly
+
     fn run(&mut self, input: SystemIn<'_, Self>, world: &mut World) -> Self::Out {
         let out = self.inner.run(input, world);
         out.run(world);
@@ -101,7 +83,7 @@ where
     }
 
     #[inline]
-    fn queue_deferred(&mut self, world: DeferredWorld) {
+    fn queue_deferred(&mut self, world: crate::world::DeferredWorld) {
         self.inner.queue_deferred(world);
     }
 
@@ -118,7 +100,6 @@ where
     fn check_change_tick(&mut self, change_tick: Tick) {
         self.inner.check_change_tick(change_tick);
     }
-
     fn get_last_run(&self) -> Tick {
         self.inner.get_last_run()
     }

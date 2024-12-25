@@ -1,6 +1,6 @@
 use crate::world::World;
 
-use super::{run_this_event_system, Packet, SmolId, SystemInput};
+use super::{run_this_packet_system, Packet, SmolId, SystemInput};
 
 pub trait OptionPacket {
     fn run(self, world: &mut World);
@@ -14,7 +14,7 @@ where
     for<'c> &'c [E]: SmolId,
 {
     fn run(self, world: &mut World) {
-        run_this_event_system::<true, E>(self, world);
+        run_this_packet_system::<true, E>(self, world);
     }
 }
 impl<E: Packet> OptionPacket for Option<E>

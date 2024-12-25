@@ -4,5 +4,5 @@ use bevy_utils::TypeIdMap;
 
 #[derive(Default)]
 pub struct Extras {
-    pub event_systems: Vec<Option<Box<dyn Any>>>,
+    pub packet_systems: Vec<Option<Box<dyn Any>>>,
 }
