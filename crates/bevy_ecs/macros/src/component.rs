@@ -53,47 +53,6 @@ pub fn derive_event(input: TokenStream) -> TokenStream {
     })
 }
 
-pub fn derive_packet(input: TokenStream) -> TokenStream {
-    let mut ast = parse_macro_input!(input as DeriveInput);
-    let bevy_ecs_path: Path = crate::bevy_ecs_path();
-
-    ast.generics
-        .make_where_clause()
-        .predicates
-        .push(parse_quote! { Self: Send + Sync + 'static });
-
-    let struct_name = &ast.ident;
-    let (impl_generics, type_generics, where_clause) = &ast.generics.split_for_impl();
-
-    TokenStream::from(quote! {
-        impl #impl_generics #bevy_ecs_path::packet::Packet for #struct_name #type_generics #where_clause {
-            // fn run_systems(self: Box<Self>, world: &mut #bevy_ecs_path::world::World) {
-            //     #bevy_ecs_path::event::run_this_boxed_event_system::<Self>(self, world);
-            // }
-        }
-        impl #impl_generics #bevy_ecs_path::packet::SmolId for #struct_name #type_generics #where_clause {
-            fn sid() -> usize {
-                use std::sync::atomic::Ordering;
-                static mut INDEX: Option<usize> = None;
-                if let Some(index) = unsafe {INDEX} { return index; }
-                else {
-                    // 0 for E, 1 foe &E, w for &[E]
-                    let rv = #bevy_ecs_path::packet::NEXT_EVENT_ID.fetch_add(3, Ordering::Relaxed) as usize;
-                    unsafe { INDEX = Some(rv); }
-                    return rv;
-                }
-            }
-        }
-        impl #impl_generics #bevy_ecs_path::packet::SystemInput for #struct_name #type_generics #where_clause {
-            type Param<'i> = Self;
-            type Inner<'i> = Self;
-            fn wrap(this: Self::Inner<'_>) -> Self::Param<'_> {
-                this
-            }
-        }
-    })
-}
-
 pub fn derive_resource(input: TokenStream) -> TokenStream {
     let mut ast = parse_macro_input!(input as DeriveInput);
     let bevy_ecs_path: Path = crate::bevy_ecs_path();
@@ -320,3 +279,45 @@ fn hook_register_function_call(
 ) -> Option<TokenStream2> {
     function.map(|meta| quote! { hooks. #hook (#meta); })
 }
+
+pub fn derive_packet(input: TokenStream) -> TokenStream {
+    let mut ast = parse_macro_input!(input as DeriveInput);
+    let bevy_ecs_path: Path = crate::bevy_ecs_path();
+
+    ast.generics
+        .make_where_clause()
+        .predicates
+        .push(parse_quote! { Self: Send + Sync + 'static });
+
+    let struct_name = &ast.ident;
+    let (impl_generics, type_generics, where_clause) = &ast.generics.split_for_impl();
+
+    TokenStream::from(quote! {
+        impl #impl_generics #bevy_ecs_path::packet::Packet for #struct_name #type_generics #where_clause {
+            // fn run_systems(self: Box<Self>, world: &mut #bevy_ecs_path::world::World) {
+            //     #bevy_ecs_path::event::run_this_boxed_event_system::<Self>(self, world);
+            // }
+        }
+        impl #impl_generics #bevy_ecs_path::packet::SmolId for #struct_name #type_generics #where_clause {
+            fn sid() -> usize {
+                use std::sync::atomic::Ordering;
+                static mut INDEX: Option<usize> = None;
+                if let Some(index) = unsafe {INDEX} { return index; }
+                else {
+                    // 0 for E, 1 foe &E, w for &[E]
+                    let rv = #bevy_ecs_path::packet::NEXT_EVENT_ID.fetch_add(3, Ordering::Relaxed) as usize;
+                    unsafe { INDEX = Some(rv); }
+                    return rv;
+                }
+            }
+        }
+        impl #impl_generics #bevy_ecs_path::packet::SystemInput for #struct_name #type_generics #where_clause {
+            type Param<'i> = Self;
+            type Inner<'i> = Self;
+            fn wrap(this: Self::Inner<'_>) -> Self::Param<'_> {
+                this
+            }
+        }
+    })
+}
+
