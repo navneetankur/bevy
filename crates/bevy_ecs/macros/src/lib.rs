@@ -588,6 +588,11 @@ pub fn derive_event(input: TokenStream) -> TokenStream {
     component::derive_event(input)
 }
 
+#[proc_macro_derive(Packet)]
+pub fn derive_packet(input: TokenStream) -> TokenStream {
+    component::derive_packet(input)
+}
+
 #[proc_macro_derive(Resource)]
 pub fn derive_resource(input: TokenStream) -> TokenStream {
     component::derive_resource(input)

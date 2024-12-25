@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use crate::{archetype::ArchetypeComponentId, component::{ComponentId, Tick}, query::Access, system::{ExclusiveFunctionSystem, ExclusiveSystemParamFunction, IntoSystem, IsExclusiveFunctionSystem, System, SystemIn}, world::{unsafe_world_cell::UnsafeWorldCell, World}};
 
-use super::{eventsystem::IntoEventSystem, OptionEvent};
+use super::{eventsystem::IntoEventSystem, OptionPacket};
 
 pub struct ExclusiveEventSystem<Marker, F>
 where
@@ -14,7 +14,7 @@ impl<Marker, F> IntoEventSystem<F::In, F::Out, (IsExclusiveFunctionSystem, Marke
 where
     Marker: 'static,
     F: ExclusiveSystemParamFunction<Marker>,
-    F::Out: OptionEvent,
+    F::Out: OptionPacket,
 {
     type System = ExclusiveEventSystem<Marker, F>;
     fn into_system(func: Self) -> Self::System {
@@ -28,7 +28,7 @@ impl<Marker, F> System for ExclusiveEventSystem<Marker, F>
 where
     Marker: 'static,
     F: ExclusiveSystemParamFunction<Marker>,
-    F::Out: OptionEvent,
+    F::Out: OptionPacket,
 {
     type In = F::In;
     type Out = ();

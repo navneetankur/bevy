@@ -10,7 +10,7 @@ use crate::{
     world::{unsafe_world_cell::UnsafeWorldCell, DeferredWorld, World},
 };
 
-use super::{OptionEvent};
+use super::{OptionPacket};
 
 pub trait IntoEventSystem<In: SystemInput, Out, Marker>: Sized {
     type System: System<In = In, Out = ()>;
@@ -26,7 +26,7 @@ impl<Marker, F> IntoEventSystem<F::In, F::Out, (IsFunctionSystem, Marker)> for F
 where
     Marker: 'static,
     F: SystemParamFunction<Marker>,
-    F::Out: OptionEvent,
+    F::Out: OptionPacket,
     // <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event: SystemInput<Inner<'static> = <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event>,
 {
     type System = EventSystem<Marker, F>;
@@ -39,7 +39,7 @@ impl<Marker, F> System for EventSystem<Marker, F>
 where
     Marker: 'static,
     F: SystemParamFunction<Marker>,
-    F::Out: OptionEvent,
+    F::Out: OptionPacket,
     // <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event: SystemInput<Inner<'static> = <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event>,
 {
     type In = F::In;

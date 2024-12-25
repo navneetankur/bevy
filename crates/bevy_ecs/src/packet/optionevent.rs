@@ -1,13 +1,13 @@
 use crate::world::World;
 
-use super::{run_this_event_system, Event, SmolId, SystemInput};
+use super::{run_this_event_system, Packet, SmolId, SystemInput};
 
-pub trait OptionEvent {
+pub trait OptionPacket {
     fn run(self, world: &mut World);
 }
-impl OptionEvent for (){ fn run(self, _: &mut World) {} }
+impl OptionPacket for (){ fn run(self, _: &mut World) {} }
 
-impl<E: Event> OptionEvent for E
+impl<E: Packet> OptionPacket for E
 where 
     E: SystemInput<Inner<'static> = E>,
     for<'b> &'b E: SmolId,
@@ -17,7 +17,7 @@ where
         run_this_event_system::<true, E>(self, world);
     }
 }
-impl<E: Event> OptionEvent for Option<E>
+impl<E: Packet> OptionPacket for Option<E>
 where 
     E: SystemInput<Inner<'static> = E>,
     for<'b> &'b E: SmolId,
@@ -30,7 +30,7 @@ where
 }
 macro_rules! impl_option_event_tuple {
     ($($param: ident),*) => {
-        impl<$($param: OptionEvent,)*> OptionEvent for ($($param,)*) {
+        impl<$($param: OptionPacket,)*> OptionPacket for ($($param,)*) {
             fn run(self, world: &mut World) {
                 #[allow(non_snake_case)]
                 let ($($param,)*) = self;

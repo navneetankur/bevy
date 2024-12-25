@@ -2,11 +2,11 @@ pub mod eventsystem;
 pub mod exclusiveeventsystem;
 pub mod eventslicer;
 mod optionevent;
-pub use optionevent::OptionEvent;
+pub use optionevent::OptionPacket;
 use core::{any::{type_name, TypeId}, sync::atomic::AtomicU32};
 use crate::{self as bevy_ecs};
 pub use crate::system::SystemInput;
-pub use bevy_ecs_macros::Event;
+pub use bevy_ecs_macros::Packet;
 use eventsystem::IntoEventSystem;
 use crate::system::{Resource, System};
 use bevy_utils::TypeIdMap;
@@ -29,13 +29,13 @@ pub struct RegisteredSystems<E: SystemInput>{
 //     fn as_registered_systems<F: SystemInput>(&mut self) -> &mut RegisteredSystems<F> {self}
 // }
 
-pub trait Event: Send + Sync + SystemInput + SmolId + 'static { }
+pub trait Packet: Send + Sync + SystemInput + SmolId + 'static { }
 pub trait SmolId { fn sid() -> usize; }
 
 pub fn register_system<I, Out, F, M>(world: &mut World, f: F)
 where
     I: SystemInput + SmolId + 'static,
-    Out: OptionEvent,
+    Out: OptionPacket,
     F: IntoEventSystem<I, Out, M> + 'static,
     M: 'static,
 {
@@ -62,7 +62,7 @@ where
 pub fn unregister_system<I, Out, F, M>(world: &mut World, _: F)
 where
     I: SystemInput + SmolId + 'static,
-    Out: OptionEvent,
+    Out: OptionPacket,
     F: IntoEventSystem<I, Out, M> + 'static,
     M: 'static,
 {
@@ -75,7 +75,7 @@ where
 struct EventInMotion(Vec<TypeId>);
 pub fn run_this_event_system<'a, const SLICE: bool, E>(event: E, world: &mut World)
 where 
-    E: Event,
+    E: Packet,
     E: SystemInput<Inner<'static> = E>,
     for<'b> &'b E: SmolId,
     for<'c> &'c [E]: SmolId,
@@ -102,7 +102,7 @@ where
 
 fn run_for_val_event<E>(world: &mut World, event: E)
 where
-    E: Event,
+    E: Packet,
     E: SystemInput<Inner<'static> = E>
 {
     world.with_event_system::<E>(|world, systems| {
@@ -115,7 +115,7 @@ where
 
 fn run_for_ref_event<E>(world: &mut World, event: &E)
 where
-    E: Event,
+    E: Packet,
     for<'a> &'a E: SmolId,
     // E: SystemInput<Inner<'static> = E>
 {
@@ -127,7 +127,7 @@ where
 }
 fn run_for_slice_event<E>(world: &mut World, event: &E)
 where
-    E: Event,
+    E: Packet,
     for<'a> &'a [E]: SmolId,
     // E: SystemInput<Inner<'static> = E>
 {
@@ -152,7 +152,7 @@ pub trait Eventy: SystemInput{}
 impl World {
     pub fn send<'a,'b,E>(&mut self, event: E)
     where
-        E: Event + SystemInput<Inner<'static> = E>,
+        E: Packet + SystemInput<Inner<'static> = E>,
         for<'d> &'d E: SmolId,
         for<'c> &'c [E]: SmolId,
     {
@@ -162,7 +162,7 @@ impl World {
     pub fn register_event_system<I, Out, F, M>(&mut self, f: F)
     where
         I: SystemInput + SmolId+ 'static,
-        Out: OptionEvent,
+        Out: OptionPacket,
         F: IntoEventSystem<I,Out, M> + 'static,
         M: 'static,
     {
@@ -171,7 +171,7 @@ impl World {
     pub fn unregister_event_system<I, Out, F, M>(&mut self, f: F)
     where
         I: SystemInput + SmolId+ 'static,
-        Out: OptionEvent,
+        Out: OptionPacket,
         F: IntoEventSystem<I,Out, M> + 'static,
         M: 'static,
     {
@@ -207,16 +207,16 @@ impl World {
     }
 
 }
-impl<E: Event> SystemInput for &E {
+impl<E: Packet> SystemInput for &E {
     type Param<'i> = &'i E;
     type Inner<'i> = &'i E;
     fn wrap(this: Self::Inner<'_>) -> Self::Param<'_> {
         this
     }
 }
-impl<E: Event + SmolId> SmolId for &E {
+impl<E: Packet + SmolId> SmolId for &E {
     fn sid() -> usize { E::sid() + 1 }
 }
-impl<E: Event + SmolId> SmolId for &[E] {
+impl<E: Packet + SmolId> SmolId for &[E] {
     fn sid() -> usize { E::sid() + 2 }
 }
