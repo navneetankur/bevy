@@ -3,7 +3,7 @@ pub mod exclusivepacketsystem;
 pub mod packetslicer;
 mod optionpacket;
 pub use optionpacket::OptionPacket;
-use core::{any::{type_name, TypeId}, sync::atomic::AtomicU32};
+use core::any::{type_name, TypeId};
 use crate::{self as bevy_ecs};
 pub use crate::system::SystemInput;
 pub use bevy_ecs_macros::Packet;
@@ -11,8 +11,6 @@ use packetsystem::IntoPacketSystem;
 use crate::system::{Resource, System};
 use smallvec::SmallVec;
 use crate::{system::BoxedSystem, world::World};
-
-pub static NEXT_EVENT_ID: AtomicU32 = AtomicU32::new(0);
 
 pub struct PacketInSystem<E: SystemInput> {
     pub v: BoxedSystem<E, ()>,
@@ -29,7 +27,7 @@ pub struct RegisteredSystems<E: SystemInput>{
 // }
 
 pub trait Packet: Send + Sync + SystemInput + SmolId + 'static { }
-pub trait SmolId { fn sid() -> usize; }
+pub trait SmolId { fn sid(world: &mut World) -> usize; }
 
 pub fn register_system<I, Out, F, M>(world: &mut World, f: F)
 where
@@ -188,8 +186,8 @@ impl World {
 
     /// don't forget to put it back.
     fn remove_packet_system<I: SystemInput + SmolId + 'static>(&mut self) -> Option<Box<RegisteredSystems<I>>> {
+        let event_index = I::sid(self);
         let event_systems = &mut self.extras.packet_systems;
-        let event_index = I::sid();
         if event_systems.len() <= event_index {
             event_systems.resize_with(event_index + 1, || None);
             return None;
@@ -199,8 +197,8 @@ impl World {
     }
 
     fn put_back_packet_system<I: SystemInput + SmolId + 'static>(&mut self, systems: Box<RegisteredSystems<I>>) {
+        let event_index = I::sid(self);
         let event_systems = &mut self.extras.packet_systems;
-        let event_index = I::sid();
         debug_assert!(event_systems[event_index].is_none());
         event_systems[event_index] = Some(systems);
     }
@@ -214,8 +212,8 @@ impl<E: Packet> SystemInput for &E {
     }
 }
 impl<E: Packet + SmolId> SmolId for &E {
-    fn sid() -> usize { E::sid() + 1 }
+    fn sid(world: &mut World) -> usize { E::sid(world) + 1 }
 }
 impl<E: Packet + SmolId> SmolId for &[E] {
-    fn sid() -> usize { E::sid() + 2 }
+    fn sid(world: &mut World) -> usize { E::sid(world) + 2 }
 }

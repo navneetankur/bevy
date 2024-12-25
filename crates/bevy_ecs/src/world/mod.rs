@@ -122,7 +122,7 @@ pub struct World {
     pub(crate) last_check_tick: Tick,
     pub(crate) last_trigger_id: u32,
     pub(crate) command_queue: RawCommandQueue,
-    pub(crate) extras: additions::Extras,
+    pub extras: additions::Extras,
 }
 
 impl Default for World {
