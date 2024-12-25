@@ -126,4 +126,8 @@ where
     fn set_last_run(&mut self, last_run: Tick) {
         self.inner.set_last_run(last_run);
     }
+
+    unsafe fn validate_param_unsafe(&mut self, world: UnsafeWorldCell) -> bool {
+        self.inner.validate_param_unsafe(world)
+    }
 }

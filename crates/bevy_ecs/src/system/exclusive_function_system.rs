@@ -9,8 +9,9 @@ use crate::{
     world::{unsafe_world_cell::UnsafeWorldCell, World},
 };
 
+use alloc::borrow::Cow;
 use bevy_utils::all_tuples;
-use std::{borrow::Cow, marker::PhantomData};
+use core::marker::PhantomData;
 
 /// A function system that runs with exclusive [`World`] access.
 ///
@@ -148,6 +149,12 @@ where
     }
 
     #[inline]
+    unsafe fn validate_param_unsafe(&mut self, _world: UnsafeWorldCell) -> bool {
+        // All exclusive system params are always available.
+        true
+    }
+
+    #[inline]
     fn initialize(&mut self, world: &mut World) {
         self.system_meta.last_run = world.change_tick().relative_to(Tick::MAX);
         self.param_state = Some(F::Param::init(world, &mut self.system_meta));
@@ -163,6 +170,7 @@ where
             self.system_meta.name.as_ref(),
         );
     }
+
     fn get_last_run(&self) -> Tick {
         self.system_meta.last_run
     }
@@ -286,7 +294,7 @@ mod tests {
         {
             fn reference_system(_world: &mut World) {}
 
-            use std::any::TypeId;
+            use core::any::TypeId;
 
             let system = IntoSystem::into_system(function);
 

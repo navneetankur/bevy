@@ -6,6 +6,7 @@ use crate::{
 use bevy_ptr::PtrMut;
 
 /// Very similar to a normal [`Column`], but with the capacities and lengths cut out for performance reasons.
+///
 /// This type is used by [`Table`], because all of the capacities and lengths of the [`Table`]'s columns must match.
 ///
 /// Like many other low-level storage types, [`ThinColumn`] has a limited and highly unsafe
@@ -224,6 +225,29 @@ impl ThinColumn {
         self.changed_by
             .initialize_unchecked(dst_row.as_usize(), changed_by);
     }
+
+    /// Call [`Tick::check_tick`] on all of the ticks stored in this column.
+    ///
+    /// # Safety
+    /// `len` is the actual length of this column
+    #[inline]
+    pub(crate) unsafe fn check_change_ticks(&mut self, len: usize, change_tick: Tick) {
+        for i in 0..len {
+            // SAFETY:
+            // - `i` < `len`
+            // we have a mutable reference to `self`
+            unsafe { self.added_ticks.get_unchecked_mut(i) }
+                .get_mut()
+                .check_tick(change_tick);
+            // SAFETY:
+            // - `i` < `len`
+            // we have a mutable reference to `self`
+            unsafe { self.changed_ticks.get_unchecked_mut(i) }
+                .get_mut()
+                .check_tick(change_tick);
+        }
+    }
+
     /// Clear all the components from this column.
     ///
     /// # Safety
@@ -258,10 +282,10 @@ impl ThinColumn {
     /// - `last_element_index` is indeed the index of the last element
     /// - the data stored in `last_element_index` will never be used unless properly initialized again.
     pub(crate) unsafe fn drop_last_component(&mut self, last_element_index: usize) {
-        std::ptr::drop_in_place(self.added_ticks.get_unchecked_raw(last_element_index));
-        std::ptr::drop_in_place(self.changed_ticks.get_unchecked_raw(last_element_index));
+        core::ptr::drop_in_place(self.added_ticks.get_unchecked_raw(last_element_index));
+        core::ptr::drop_in_place(self.changed_ticks.get_unchecked_raw(last_element_index));
         #[cfg(feature = "track_change_detection")]
-        std::ptr::drop_in_place(self.changed_by.get_unchecked_raw(last_element_index));
+        core::ptr::drop_in_place(self.changed_by.get_unchecked_raw(last_element_index));
         self.data.drop_last_element(last_element_index);
     }
 
@@ -388,7 +412,6 @@ impl Column {
     ///
     /// # Safety
     /// `row` must be within the range `[0, self.len())`.
-    ///
     #[inline]
     pub(crate) unsafe fn swap_remove_unchecked(&mut self, row: TableRow) {
         self.data.swap_remove_and_drop_unchecked(row.as_usize());
@@ -623,6 +646,17 @@ impl Column {
         #[cfg(feature = "track_change_detection")]
         self.changed_by.clear();
     }
+
+    #[inline]
+    pub(crate) fn check_change_ticks(&mut self, change_tick: Tick) {
+        for component_ticks in &mut self.added_ticks {
+            component_ticks.get_mut().check_tick(change_tick);
+        }
+        for component_ticks in &mut self.changed_ticks {
+            component_ticks.get_mut().check_tick(change_tick);
+        }
+    }
+
     /// Fetches the calling location that last changed the value at `row`.
     ///
     /// Returns `None` if `row` is out of bounds.

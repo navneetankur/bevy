@@ -99,7 +99,17 @@
 //! - [`Components`](crate::component::Components) (Provides Components metadata)
 //! - [`Entities`](crate::entity::Entities) (Provides Entities metadata)
 //! - All tuples between 1 to 16 elements where each element implements [`SystemParam`]
+//! - [`ParamSet`]
 //! - [`()` (unit primitive type)](https://doc.rust-lang.org/stable/std/primitive.unit.html)
+//!
+//! In addition, the following parameters can be used when constructing a dynamic system with [`SystemParamBuilder`],
+//! but will only provide an empty value when used with an ordinary system:
+//!
+//! - [`FilteredResources`](crate::world::FilteredResources)
+//! - [`FilteredResourcesMut`](crate::world::FilteredResourcesMut)
+//! - [`DynSystemParam`]
+//! - [`Vec<P>`] where `P: SystemParam`
+//! - [`ParamSet<Vec<P>>`] where `P: SystemParam`
 
 mod adapter_system;
 mod builder;
@@ -109,6 +119,7 @@ mod exclusive_function_system;
 mod exclusive_system_param;
 mod function_system;
 mod input;
+mod observer_system;
 mod query;
 #[allow(clippy::module_inception)]
 mod system;
@@ -116,7 +127,7 @@ mod system_name;
 mod system_param;
 mod system_registry;
 
-use std::{any::TypeId, borrow::Cow};
+use core::any::TypeId;
 
 pub use adapter_system::*;
 pub use builder::*;
@@ -126,12 +137,12 @@ pub use exclusive_function_system::*;
 pub use exclusive_system_param::*;
 pub use function_system::*;
 pub use input::*;
+pub use observer_system::*;
 pub use query::*;
 pub use system::*;
 pub use system_name::*;
 pub use system_param::*;
 pub use system_registry::*;
-pub use bevy_ecs_macros::Resource;
 
 use crate::world::World;
 
@@ -167,16 +178,13 @@ pub trait IntoSystem<In: SystemInput, Out, Marker>: Sized {
     ///
     /// The second system must have [`In<T>`](crate::system::In) as its first parameter,
     /// where `T` is the return type of the first system.
-    fn pipe<B, BIn, BOut, MarkerB>(self, system: B) -> PipeSystem<Self::System, B::System>
+    fn pipe<B, BIn, BOut, MarkerB>(self, system: B) -> IntoPipeSystem<Self, B>
     where
         Out: 'static,
         B: IntoSystem<BIn, BOut, MarkerB>,
         for<'a> BIn: SystemInput<Inner<'a> = Out>,
     {
-        let system_a = IntoSystem::into_system(self);
-        let system_b = IntoSystem::into_system(system);
-        let name = format!("Pipe({}, {})", system_a.name(), system_b.name());
-        PipeSystem::new(system_a, system_b, Cow::Owned(name))
+        IntoPipeSystem::new(self, system)
     }
 
     /// Pass the output of this system into the passed function `f`, creating a new system that
@@ -198,13 +206,11 @@ pub trait IntoSystem<In: SystemInput, Out, Marker>: Sized {
     ///     # Err(())
     /// }
     /// ```
-    fn map<T, F>(self, f: F) -> AdapterSystem<F, Self::System>
+    fn map<T, F>(self, f: F) -> IntoAdapterSystem<F, Self>
     where
         F: Send + Sync + 'static + FnMut(Out) -> T,
     {
-        let system = Self::into_system(self);
-        let name = system.name();
-        AdapterSystem::new(f, system, name)
+        IntoAdapterSystem::new(f, self)
     }
 
     /// Get the [`TypeId`] of the [`System`] produced after calling [`into_system`](`IntoSystem::into_system`).
@@ -304,10 +310,8 @@ pub fn assert_system_does_not_conflict<Out, Params, S: IntoSystem<(), Out, Param
 #[cfg(test)]
 mod tests {
     use bevy_utils::default;
-    use std::any::TypeId;
+    use core::any::TypeId;
 
-    use crate::prelude::EntityRef;
-    use crate::world::EntityMut;
     use crate::{
         self as bevy_ecs,
         archetype::{ArchetypeComponentId, Archetypes},
@@ -315,13 +319,18 @@ mod tests {
         change_detection::DetectChanges,
         component::{Component, Components, Tick},
         entity::{Entities, Entity},
-        prelude::AnyOf,
+        prelude::{AnyOf, EntityRef},
         query::{Added, Changed, Or, With, Without},
+        removal_detection::RemovedComponents,
+        schedule::{
+            apply_deferred, common_conditions::resource_exists, Condition, IntoSystemConfigs,
+            Schedule,
+        },
         system::{
             Commands, In, IntoSystem, Local, NonSend, NonSendMut, ParamSet, Query, Res, ResMut,
-            Resource, StaticSystemParam, System, SystemState,
+            Resource, Single, StaticSystemParam, System, SystemState,
         },
-        world::{FromWorld, World},
+        world::{EntityMut, FromWorld, World},
     };
 
     #[derive(Resource, PartialEq, Debug)]
@@ -448,6 +457,56 @@ mod tests {
         run_system(&mut world, query_system);
 
         assert_eq!(*world.resource::<SystemRan>(), SystemRan::Yes);
+    }
+
+    #[test]
+    fn changed_resource_system() {
+        use crate::system::Resource;
+
+        #[derive(Resource)]
+        struct Flipper(bool);
+
+        #[derive(Resource)]
+        struct Added(usize);
+
+        #[derive(Resource)]
+        struct Changed(usize);
+
+        fn incr_e_on_flip(
+            value: Res<Flipper>,
+            mut changed: ResMut<Changed>,
+            mut added: ResMut<Added>,
+        ) {
+            if value.is_added() {
+                added.0 += 1;
+            }
+
+            if value.is_changed() {
+                changed.0 += 1;
+            }
+        }
+
+        let mut world = World::default();
+        world.insert_resource(Flipper(false));
+        world.insert_resource(Added(0));
+        world.insert_resource(Changed(0));
+
+        let mut schedule = Schedule::default();
+
+        schedule.add_systems((incr_e_on_flip, apply_deferred, World::clear_trackers).chain());
+
+        schedule.run(&mut world);
+        assert_eq!(world.resource::<Added>().0, 1);
+        assert_eq!(world.resource::<Changed>().0, 1);
+
+        schedule.run(&mut world);
+        assert_eq!(world.resource::<Added>().0, 1);
+        assert_eq!(world.resource::<Changed>().0, 1);
+
+        world.resource_mut::<Flipper>().0 = true;
+        schedule.run(&mut world);
+        assert_eq!(world.resource::<Added>().0, 1);
+        assert_eq!(world.resource::<Changed>().0, 2);
     }
 
     #[test]
@@ -831,10 +890,10 @@ mod tests {
 
         world.insert_resource(SystemRan::No);
         #[allow(dead_code)]
-        struct NotSend1(std::rc::Rc<i32>);
+        struct NotSend1(alloc::rc::Rc<i32>);
         #[allow(dead_code)]
-        struct NotSend2(std::rc::Rc<i32>);
-        world.insert_non_send_resource(NotSend1(std::rc::Rc::new(0)));
+        struct NotSend2(alloc::rc::Rc<i32>);
+        world.insert_non_send_resource(NotSend1(alloc::rc::Rc::new(0)));
 
         fn sys(
             op: Option<NonSend<NotSend1>>,
@@ -856,12 +915,12 @@ mod tests {
 
         world.insert_resource(SystemRan::No);
         #[allow(dead_code)]
-        struct NotSend1(std::rc::Rc<i32>);
+        struct NotSend1(alloc::rc::Rc<i32>);
         #[allow(dead_code)]
-        struct NotSend2(std::rc::Rc<i32>);
+        struct NotSend2(alloc::rc::Rc<i32>);
 
-        world.insert_non_send_resource(NotSend1(std::rc::Rc::new(1)));
-        world.insert_non_send_resource(NotSend2(std::rc::Rc::new(2)));
+        world.insert_non_send_resource(NotSend1(alloc::rc::Rc::new(1)));
+        world.insert_non_send_resource(NotSend2(alloc::rc::Rc::new(2)));
 
         fn sys(
             _op: NonSend<NotSend1>,
@@ -873,6 +932,80 @@ mod tests {
 
         run_system(&mut world, sys);
         assert_eq!(*world.resource::<SystemRan>(), SystemRan::Yes);
+    }
+
+    #[test]
+    fn removal_tracking() {
+        let mut world = World::new();
+
+        let entity_to_despawn = world.spawn(W(1)).id();
+        let entity_to_remove_w_from = world.spawn(W(2)).id();
+        let spurious_entity = world.spawn_empty().id();
+
+        // Track which entities we want to operate on
+        #[derive(Resource)]
+        struct Despawned(Entity);
+        world.insert_resource(Despawned(entity_to_despawn));
+
+        #[derive(Resource)]
+        struct Removed(Entity);
+        world.insert_resource(Removed(entity_to_remove_w_from));
+
+        // Verify that all the systems actually ran
+        #[derive(Default, Resource)]
+        struct NSystems(usize);
+        world.insert_resource(NSystems::default());
+
+        // First, check that removal detection is triggered if and only if we despawn an entity with the correct component
+        world.entity_mut(entity_to_despawn).despawn();
+        world.entity_mut(spurious_entity).despawn();
+
+        fn validate_despawn(
+            mut removed_i32: RemovedComponents<W<i32>>,
+            despawned: Res<Despawned>,
+            mut n_systems: ResMut<NSystems>,
+        ) {
+            assert_eq!(
+                removed_i32.read().collect::<Vec<_>>(),
+                &[despawned.0],
+                "despawning causes the correct entity to show up in the 'RemovedComponent' system parameter."
+            );
+
+            n_systems.0 += 1;
+        }
+
+        run_system(&mut world, validate_despawn);
+
+        // Reset the trackers to clear the buffer of removed components
+        // Ordinarily, this is done in a system added by MinimalPlugins
+        world.clear_trackers();
+
+        // Then, try removing a component
+        world.spawn(W(3));
+        world.spawn(W(4));
+        world.entity_mut(entity_to_remove_w_from).remove::<W<i32>>();
+
+        fn validate_remove(
+            mut removed_i32: RemovedComponents<W<i32>>,
+            despawned: Res<Despawned>,
+            removed: Res<Removed>,
+            mut n_systems: ResMut<NSystems>,
+        ) {
+            // The despawned entity from the previous frame was
+            // double buffered so we now have it in this system as well.
+            assert_eq!(
+                removed_i32.read().collect::<Vec<_>>(),
+                &[despawned.0, removed.0],
+                "removing a component causes the correct entity to show up in the 'RemovedComponent' system parameter."
+            );
+
+            n_systems.0 += 1;
+        }
+
+        run_system(&mut world, validate_remove);
+
+        // Verify that both systems actually ran
+        assert_eq!(world.resource::<NSystems>().0, 2);
     }
 
     #[test]
@@ -1024,12 +1157,15 @@ mod tests {
         world.insert_resource(A(42));
         world.spawn(B(7));
 
-        let mut system_state: SystemState<(Res<A>, Query<&B>, ParamSet<(Query<&C>, Query<&D>)>)> =
-            SystemState::new(&mut world);
+        let mut system_state: SystemState<(
+            Res<A>,
+            Option<Single<&B>>,
+            ParamSet<(Query<&C>, Query<&D>)>,
+        )> = SystemState::new(&mut world);
         let (a, query, _) = system_state.get(&world);
         assert_eq!(*a, A(42), "returned resource matches initial value");
         assert_eq!(
-            *query.single(),
+            **query.unwrap(),
             B(7),
             "returned component matches initial value"
         );
@@ -1047,16 +1183,16 @@ mod tests {
         world.insert_resource(A(42));
         world.spawn(B(7));
 
-        let mut system_state: SystemState<(ResMut<A>, Query<&mut B>)> =
+        let mut system_state: SystemState<(ResMut<A>, Option<Single<&mut B>>)> =
             SystemState::new(&mut world);
 
         // The following line shouldn't compile because the parameters used are not ReadOnlySystemParam
         // let (a, query) = system_state.get(&world);
 
-        let (a, mut query) = system_state.get_mut(&mut world);
+        let (a, query) = system_state.get_mut(&mut world);
         assert_eq!(*a, A(42), "returned resource matches initial value");
         assert_eq!(
-            *query.single_mut(),
+            **query.unwrap(),
             B(7),
             "returned component matches initial value"
         );
@@ -1070,21 +1206,22 @@ mod tests {
         let mut world = World::default();
         let entity = world.spawn(A(1)).id();
 
-        let mut system_state: SystemState<Query<&A, Changed<A>>> = SystemState::new(&mut world);
+        let mut system_state: SystemState<Option<Single<&A, Changed<A>>>> =
+            SystemState::new(&mut world);
         {
             let query = system_state.get(&world);
-            assert_eq!(*query.single(), A(1));
+            assert_eq!(**query.unwrap(), A(1));
         }
 
         {
             let query = system_state.get(&world);
-            assert!(query.get_single().is_err());
+            assert!(query.is_none());
         }
 
         world.entity_mut(entity).get_mut::<A>().unwrap().0 = 2;
         {
             let query = system_state.get(&world);
-            assert_eq!(*query.single(), A(2));
+            assert_eq!(**query.unwrap(), A(2));
         }
     }
 
@@ -1322,7 +1459,7 @@ mod tests {
         let mut world = World::default();
         let mut system = IntoSystem::into_system(a_not_b_system);
         let mut expected_ids = HashSet::<ArchetypeComponentId>::new();
-        let a_id = world.init_component::<A>();
+        let a_id = world.register_component::<A>();
 
         // set up system and verify its access is empty
         system.initialize(&mut world);
@@ -1470,7 +1607,7 @@ mod tests {
 
     #[test]
     fn assert_systems() {
-        use std::str::FromStr;
+        use core::str::FromStr;
 
         use crate::{prelude::*, system::assert_is_system};
 
@@ -1552,7 +1689,7 @@ mod tests {
 
         let mut world = World::new();
         world.init_resource::<Flag>();
-        let mut sys = first.pipe(second);
+        let mut sys = IntoSystem::into_system(first.pipe(second));
         sys.initialize(&mut world);
 
         sys.run(default(), &mut world);
@@ -1582,5 +1719,34 @@ mod tests {
         assert!(!info1.second_flag);
         assert!(info2.first_flag);
         assert!(!info2.second_flag);
+    }
+
+    #[test]
+    fn test_combinator_clone() {
+        let mut world = World::new();
+        #[derive(Resource)]
+        struct A;
+        #[derive(Resource)]
+        struct B;
+        #[derive(Resource, PartialEq, Eq, Debug)]
+        struct C(i32);
+
+        world.insert_resource(A);
+        world.insert_resource(C(0));
+        let mut sched = Schedule::default();
+        sched.add_systems(
+            (
+                |mut res: ResMut<C>| {
+                    res.0 += 1;
+                },
+                |mut res: ResMut<C>| {
+                    res.0 += 2;
+                },
+            )
+                .distributive_run_if(resource_exists::<A>.or(resource_exists::<B>)),
+        );
+        sched.initialize(&mut world).unwrap();
+        sched.run(&mut world);
+        assert_eq!(world.get_resource(), Some(&C(3)));
     }
 }

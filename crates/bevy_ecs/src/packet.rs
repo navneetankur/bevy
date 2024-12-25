@@ -9,7 +9,6 @@ pub use crate::system::SystemInput;
 pub use bevy_ecs_macros::Packet;
 use packetsystem::IntoPacketSystem;
 use crate::system::{Resource, System};
-use bevy_utils::TypeIdMap;
 use smallvec::SmallVec;
 use crate::{system::BoxedSystem, world::World};
 

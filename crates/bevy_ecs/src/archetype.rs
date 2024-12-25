@@ -23,10 +23,11 @@ use crate::{
     bundle::BundleId,
     component::{ComponentId, Components, RequiredComponentConstructor, StorageType},
     entity::{Entity, EntityLocation},
+    observer::Observers,
     storage::{ImmutableSparseSet, SparseArray, SparseSet, SparseSetIndex, TableId, TableRow},
 };
 use bevy_utils::HashMap;
-use std::{
+use core::{
     hash::Hash,
     ops::{Index, IndexMut, RangeFrom},
 };
@@ -134,15 +135,15 @@ pub(crate) struct AddBundle {
 }
 
 impl AddBundle {
-    pub(crate) fn iter_inserted(&self) -> impl Iterator<Item = ComponentId> + '_ {
+    pub(crate) fn iter_inserted(&self) -> impl Iterator<Item = ComponentId> + Clone + '_ {
         self.added.iter().chain(self.existing.iter()).copied()
     }
 
-    pub(crate) fn iter_added(&self) -> impl Iterator<Item = ComponentId> + '_ {
+    pub(crate) fn iter_added(&self) -> impl Iterator<Item = ComponentId> + Clone + '_ {
         self.added.iter().copied()
     }
 
-    pub(crate) fn iter_existing(&self) -> impl Iterator<Item = ComponentId> + '_ {
+    pub(crate) fn iter_existing(&self) -> impl Iterator<Item = ComponentId> + Clone + '_ {
         self.existing.iter().copied()
     }
 }
@@ -374,6 +375,7 @@ impl Archetype {
     pub(crate) fn new(
         components: &Components,
         component_index: &mut ComponentIndex,
+        observers: &Observers,
         id: ArchetypeId,
         table_id: TableId,
         table_components: impl Iterator<Item = (ComponentId, ArchetypeComponentId)>,
@@ -387,6 +389,7 @@ impl Archetype {
             // SAFETY: We are creating an archetype that includes this component so it must exist
             let info = unsafe { components.get_info_unchecked(component_id) };
             info.update_archetype_flags(&mut flags);
+            observers.update_archetype_flags(component_id, &mut flags);
             archetype_components.insert(
                 component_id,
                 ArchetypeComponentInfo {
@@ -407,6 +410,7 @@ impl Archetype {
             // SAFETY: We are creating an archetype that includes this component so it must exist
             let info = unsafe { components.get_info_unchecked(component_id) };
             info.update_archetype_flags(&mut flags);
+            observers.update_archetype_flags(component_id, &mut flags);
             archetype_components.insert(
                 component_id,
                 ArchetypeComponentInfo {
@@ -485,7 +489,7 @@ impl Archetype {
     ///
     /// All of the IDs are unique.
     #[inline]
-    pub fn components(&self) -> impl Iterator<Item = ComponentId> + '_ {
+    pub fn components(&self) -> impl Iterator<Item = ComponentId> + Clone + '_ {
         self.components.indices()
     }
 
@@ -795,6 +799,7 @@ impl Archetypes {
         unsafe {
             archetypes.get_id_or_insert(
                 &Components::default(),
+                &Observers::default(),
                 TableId::empty(),
                 Vec::new(),
                 Vec::new(),
@@ -896,6 +901,7 @@ impl Archetypes {
     pub(crate) unsafe fn get_id_or_insert(
         &mut self,
         components: &Components,
+        observers: &Observers,
         table_id: TableId,
         table_components: Vec<ComponentId>,
         sparse_set_components: Vec<ComponentId>,
@@ -928,6 +934,7 @@ impl Archetypes {
                 archetypes.push(Archetype::new(
                     components,
                     component_index,
+                    observers,
                     id,
                     table_id,
                     table_components
@@ -961,6 +968,24 @@ impl Archetypes {
     /// Get the component index
     pub(crate) fn component_index(&self) -> &ComponentIndex {
         &self.by_component
+    }
+
+    pub(crate) fn update_flags(
+        &mut self,
+        component_id: ComponentId,
+        flags: ArchetypeFlags,
+        set: bool,
+    ) {
+        if let Some(archetypes) = self.by_component.get(&component_id) {
+            for archetype_id in archetypes.keys() {
+                // SAFETY: the component index only contains valid archetype ids
+                self.archetypes
+                    .get_mut(archetype_id.index())
+                    .unwrap()
+                    .flags
+                    .set(flags, set);
+            }
+        }
     }
 }
 
