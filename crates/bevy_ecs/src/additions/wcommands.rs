@@ -39,7 +39,8 @@ unsafe impl<'w,'s> SystemParam for WCommands<'w,'s> {
     }
 
     fn apply(state: &mut Self::State, _: &crate::system::SystemMeta, world: &mut World) {
-        let Some(mut queue) = state.queue.take() else {return};
+        // let Some(mut queue) = state.queue.take() else {return};
+        let mut queue = state.queue.take().unwrap();
         queue.apply(world);
         debug_assert!(world.extras.queue.is_none());
         world.extras.queue = Some(queue);
