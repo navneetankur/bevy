@@ -3,7 +3,7 @@ use crate::{system::{Commands, ResMut, Resource, SystemParam}, world::{CommandQu
 
 #[derive(Deref, DerefMut)]
 pub struct WCommands<'w,'s> {
-    pub v: Commands<'w,'s>,
+    v: Commands<'w,'s>,
 }
 pub struct Internal {
     queue: Option<CommandQueue>,
