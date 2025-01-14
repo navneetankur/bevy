@@ -17,12 +17,7 @@ where
         run_this_packet_system::<true, E>(self, world);
     }
 }
-impl<E: Packet> OptionPacket for Option<E>
-where 
-    E: SystemInput<Inner<'static> = E>,
-    for<'b> &'b E: SmolId,
-    for<'c> &'c [E]: SmolId,
-{
+impl<O: OptionPacket> OptionPacket for Option<O> {
     fn run(self, world: &mut World) {
         let Some(event) = self else {return};
         event.run(world);
@@ -47,3 +42,13 @@ impl_option_event_tuple!(O1, O2);
 impl_option_event_tuple!(O1, O2, O3);
 impl_option_event_tuple!(O1, O2, O3, O4);
 impl_option_event_tuple!(O1, O2, O3, O4, O5);
+impl_option_event_tuple!(O1, O2, O3, O4, O5, O6);
+impl_option_event_tuple!(O1, O2, O3, O4, O5, O6, O7);
+impl_option_event_tuple!(O1, O2, O3, O4, O5, O6, O7, O8);
+impl_option_event_tuple!(O1, O2, O3, O4, O5, O6, O7, O8, O9);
+impl_option_event_tuple!(O1, O2, O3, O4, O5, O6, O7, O8, O9, O10);
+impl_option_event_tuple!(O1, O2, O3, O4, O5, O6, O7, O8, O9, O10, O11);
+impl_option_event_tuple!(O1, O2, O3, O4, O5, O6, O7, O8, O9, O10, O11, O12);
+impl_option_event_tuple!(O1, O2, O3, O4, O5, O6, O7, O8, O9, O10, O11, O12, O13);
+impl_option_event_tuple!(O1, O2, O3, O4, O5, O6, O7, O8, O9, O10, O11, O12, O13, O14);
+impl_option_event_tuple!(O1, O2, O3, O4, O5, O6, O7, O8, O9, O10, O11, O12, O13, O14, O15);
