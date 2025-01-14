@@ -1,5 +1,6 @@
 pub mod extras;
 pub use extras::Extras;
+pub mod wcommands;
 
 pub mod player;
 use crate::system::{ReadOnlySystemParam, Res, ResMut, Resource, SystemParam};
