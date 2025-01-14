@@ -4,7 +4,7 @@ pub mod packetslicer;
 mod optionpacket;
 pub use optionpacket::OptionPacket;
 use core::any::{type_name, TypeId};
-use crate::{self as bevy_ecs};
+use crate::{self as bevy_ecs, system::Commands};
 pub use crate::system::SystemInput;
 pub use bevy_ecs_macros::Packet;
 use packetsystem::IntoPacketSystem;
@@ -147,13 +147,13 @@ impl<E: SystemInput> Default for RegisteredSystems<E> {
 pub trait Eventy: SystemInput{}
 
 impl World {
-    pub fn send<'a,'b,E>(&mut self, event: E)
+    pub fn send<'a,'b,E>(&mut self, packet: E)
     where
         E: Packet + SystemInput<Inner<'static> = E>,
         for<'d> &'d E: SmolId,
         for<'c> &'c [E]: SmolId,
     {
-        run_this_packet_system::<true, E>(event, self);
+        run_this_packet_system::<true, E>(packet, self);
     }
 
     pub fn register_packet_system<I, Out, F, M>(&mut self, f: F)
@@ -203,6 +203,16 @@ impl World {
         event_systems[event_index] = Some(systems);
     }
 
+}
+impl<'w,'s> Commands<'w,'s> {
+    pub fn send<E>(&mut self, packet: E)
+    where
+        E: Packet + SystemInput<Inner<'static> = E>,
+        for<'d> &'d E: SmolId,
+        for<'c> &'c [E]: SmolId,
+    {
+        self.queue(move |world: &mut World| world.send(packet));
+    }
 }
 impl<E: Packet> SystemInput for &E {
     type Param<'i> = &'i E;
