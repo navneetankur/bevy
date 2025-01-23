@@ -1,7 +1,5 @@
-use derive_more::derive::{Deref, DerefMut};
 use crate::{system::{Commands, ResMut, Resource, SystemParam}, world::{CommandQueue, World}};
 
-#[derive(Deref, DerefMut)]
 pub struct WCommands<'w,'s> {
     v: Commands<'w,'s>,
 }
