@@ -88,7 +88,7 @@ where
         }
     }
     run_for_ref_packet(world, &event);
-    if SLICE { run_for_slice_packet(world, &event); }
+    if SLICE { run_for_single_slice_packet(world, &event); }
     run_for_val_packet(world, event);
     #[cfg(debug_assertions)]
     {
@@ -123,7 +123,7 @@ where
         }
     });
 }
-fn run_for_slice_packet<E>(world: &mut World, event: &E)
+fn run_for_single_slice_packet<E>(world: &mut World, event: &E)
 where
     E: Packet,
     for<'a> &'a [E]: SmolId,

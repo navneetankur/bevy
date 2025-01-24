@@ -52,3 +52,20 @@ impl_option_event_tuple!(O1, O2, O3, O4, O5, O6, O7, O8, O9, O10, O11, O12);
 impl_option_event_tuple!(O1, O2, O3, O4, O5, O6, O7, O8, O9, O10, O11, O12, O13);
 impl_option_event_tuple!(O1, O2, O3, O4, O5, O6, O7, O8, O9, O10, O11, O12, O13, O14);
 impl_option_event_tuple!(O1, O2, O3, O4, O5, O6, O7, O8, O9, O10, O11, O12, O13, O14, O15);
+impl_option_event_tuple!(O1, O2, O3, O4, O5, O6, O7, O8, O9, O10, O11, O12, O13, O14, O15, O16);
+
+macro_rules! impl_option_packet_array {
+    ($($N: literal),*) => {
+        $(
+            impl<O: OptionPacket> OptionPacket for [O;$N] {
+                fn run(self, world: &mut World) {
+                    for packet in self {
+                        packet.run(world);
+                    }
+                }
+            }
+        )*
+    };
+}
+
+impl_option_packet_array!(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16);

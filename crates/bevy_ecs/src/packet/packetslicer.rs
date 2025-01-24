@@ -43,7 +43,7 @@ where
     }
 
     fn apply(state: &mut Self::State, _: &crate::system::SystemMeta, world: &mut World) {
-        run_for_slice_event(world, state.get());
+        run_for_slice_packet(world, state.get());
         if FORWARD {
            for event in state.get().drain(..) {
                // todo optimization: get the systems and run one it
@@ -68,7 +68,7 @@ impl<E: Packet> SystemInput for &[E] {
     type Inner<'i> = &'i [E];
     fn wrap(this: Self::Inner<'_>) -> Self::Param<'_> { this }
 }
-fn run_for_slice_event<E>(world: &mut World, event_slice: &[E])
+pub fn run_for_slice_packet<E>(world: &mut World, event_slice: &[E])
 where
     E: Packet,
     for<'b> &'b E: SmolId,
@@ -91,7 +91,7 @@ where
     P: SystemInput<Inner<'static> = P>,
 {
     fn run(self, world: &mut World) {
-        run_for_slice_event(world, &self.0);
+        run_for_slice_packet(world, &self.0);
         for packet in self.0 {
            // todo optimization: get the systems and run one it
            // instead of getting event multiple times and hitting hashmap in world.
