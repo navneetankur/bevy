@@ -107,7 +107,7 @@ where
         let mut systems_iter = systems.v.iter_mut();
         let Some(system) = systems_iter.next() else { return };
         system.v.run(event, world);
-        debug_assert!(systems_iter.next().is_none(), "Only one system can take value {:?}", type_name::<E>());
+        debug_assert!(systems_iter.len() == 0, "Only one system can take value {:?}", type_name::<E>());
     });
 }
 
