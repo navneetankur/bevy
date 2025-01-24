@@ -1,3 +1,4 @@
+pub mod ecommands;
 pub mod packetsystem;
 pub mod exclusivepacketsystem;
 pub mod packetslicer;

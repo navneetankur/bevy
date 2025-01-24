@@ -1,10 +1,11 @@
 use core::ops::{Deref, DerefMut};
 
 use bevy_utils::synccell::SyncCell;
+use derive_more::derive::{Deref, DerefMut};
 
 use crate::{system::{ReadOnlySystemParam, SystemParam}, world::World};
 
-use super::{run_this_packet_system, Packet, SmolId, SystemInput};
+use super::{run_this_packet_system, OptionPacket, Packet, SmolId, SystemInput};
 
 pub struct PacketSlicer<'s, E: Packet, const FORWARD: bool = true>(&'s mut Vec<E>);
 impl<'s, E: Packet, const F: bool> PacketSlicer<'s, E, F> {
@@ -17,8 +18,6 @@ impl<E: Packet, const FORWARD: bool> Deref for PacketSlicer<'_, E, FORWARD> {
 impl<E: Packet, const FORWARD: bool> DerefMut for PacketSlicer<'_, E, FORWARD> {
     fn deref_mut(&mut self) -> &mut Self::Target { self.0 }
 }
-
-
 
 unsafe impl<E: Packet, const FORWARD: bool> SystemParam for PacketSlicer<'_, E, FORWARD>
 where 
@@ -82,5 +81,22 @@ where
     }
     //put back
     world.put_back_packet_system(systems);
+}
+
+#[derive(Deref, DerefMut, Default)]
+pub struct PacketVec<P: Packet>(Vec<P>);
+
+impl<P: Packet> OptionPacket for PacketVec<P>
+where 
+    P: SystemInput<Inner<'static> = P>,
+{
+    fn run(self, world: &mut World) {
+        run_for_slice_event(world, &self.0);
+        for packet in self.0 {
+           // todo optimization: get the systems and run one it
+           // instead of getting event multiple times and hitting hashmap in world.
+           run_this_packet_system::<false, P>(packet, world);
+        }
+    }
 }
 
