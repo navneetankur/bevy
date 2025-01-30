@@ -7,19 +7,19 @@ use crate::{system::{ReadOnlySystemParam, SystemParam}, world::World};
 
 use super::{run_this_packet_system, OptionPacket, Packet, SmolId, SystemInput};
 
-pub struct PacketSlicer<'s, E: Packet, const FORWARD: bool = true>(&'s mut Vec<E>);
-impl<'s, E: Packet, const F: bool> PacketSlicer<'s, E, F> {
+pub struct PacketSlicer<'s, E: Packet>(&'s mut Vec<E>);
+impl<'s, E: Packet> PacketSlicer<'s, E> {
     fn new(v: &'s mut Vec<E>) -> Self { Self(v) }
 }
-impl<E: Packet, const FORWARD: bool> Deref for PacketSlicer<'_, E, FORWARD> {
+impl<E: Packet> Deref for PacketSlicer<'_, E> {
     type Target = Vec<E>;
     fn deref(&self) -> &Self::Target { self.0 }
 }
-impl<E: Packet, const FORWARD: bool> DerefMut for PacketSlicer<'_, E, FORWARD> {
+impl<E: Packet> DerefMut for PacketSlicer<'_, E> {
     fn deref_mut(&mut self) -> &mut Self::Target { self.0 }
 }
 
-unsafe impl<E: Packet, const FORWARD: bool> SystemParam for PacketSlicer<'_, E, FORWARD>
+unsafe impl<E: Packet> SystemParam for PacketSlicer<'_, E>
 where 
     E: SystemInput<Inner<'static> = E>,
     for<'b> &'b E: SmolId,
@@ -27,7 +27,7 @@ where
 {
     type State = SyncCell<Vec<E>>;
 
-    type Item<'world, 'state> = PacketSlicer<'state, E, FORWARD>;
+    type Item<'world, 'state> = PacketSlicer<'state, E>;
 
     fn init_state(_: &mut World, _: &mut crate::system::SystemMeta) -> Self::State {
         SyncCell::new(Vec::with_capacity(2))
@@ -44,19 +44,14 @@ where
 
     fn apply(state: &mut Self::State, _: &crate::system::SystemMeta, world: &mut World) {
         run_for_slice_packet(world, state.get());
-        if FORWARD {
-           for event in state.get().drain(..) {
-               // todo optimization: get the systems and run one it
-               // instead of getting event multiple times and hitting hashmap in world.
-               run_this_packet_system::<false, E>(event, world);
-           }
-        }
-        else {
-            state.get().clear();
-        }
+       for event in state.get().drain(..) {
+           // todo optimization: get the systems and run one it
+           // instead of getting event multiple times and hitting hashmap in world.
+           run_this_packet_system::<false, E>(event, world);
+       }
     }
 }
-unsafe impl<E: Packet, const FORWARD: bool> ReadOnlySystemParam for PacketSlicer<'_, E, FORWARD>
+unsafe impl<E: Packet> ReadOnlySystemParam for PacketSlicer<'_, E>
 where 
     E: SystemInput<Inner<'static> = E>,
     for<'b> &'b E: SmolId,
