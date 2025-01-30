@@ -1,4 +1,4 @@
-use crate::{system::{Commands, ResMut, Resource, SystemParam}, world::{CommandQueue, World}};
+use crate::{entity::Entity, system::{Commands, EntityCommands, ResMut, Resource, SystemParam}, world::{CommandQueue, World}};
 
 pub struct WCommands<'w,'s> {
     v: Commands<'w,'s>,
@@ -55,4 +55,10 @@ unsafe impl<'w,'s> SystemParam for WCommands<'w,'s> {
 //     ) -> bool {
 //         <ResMut<'w, Internal> as SystemParam>::validate_param(&state.res_state, system_meta, world)
 //     }
+}
+
+impl<'w, 's> WCommands<'w, 's> {
+    pub fn entity(&mut self, entity: Entity) -> EntityCommands {
+        self.v.entity(entity)
+    }
 }
