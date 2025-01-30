@@ -44,6 +44,7 @@ unsafe impl<'a, D: QueryData + 'static> SystemParam for Player<'a, D> {
     }
 }
 impl<'w, Q: QueryData> Player<'w, Q> {
+    pub fn into_inner(self) -> Q::Item<'w> { self.0 }
 }
 impl<'w, Q: QueryData> Deref for Player<'w, Q> {
     type Target = Q::Item<'w>;
