@@ -61,4 +61,7 @@ impl<'w, 's> WCommands<'w, 's> {
     pub fn entity(&mut self, entity: Entity) -> EntityCommands {
         self.v.entity(entity)
     }
+    pub fn spawn_empty(&mut self) -> EntityCommands {
+        self.v.spawn_empty()
+    }
 }
