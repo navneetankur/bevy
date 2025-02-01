@@ -1,21 +1,19 @@
-use derive_more::derive::{Deref, DerefMut};
 
-use crate::{system::{Commands, ResMut, Resource, SystemParam}, world::{CommandQueue, World}};
+use derive_more::Deref;
+use derive_more::DerefMut;
+use crate::{system::{Commands, ResMut, Resource, SystemParam}, world::World};
 
-/// Rust safety is actually broken here. Don't use World::Commands somehow while you are using
-/// WCommands
+/// Rust safety is actually broken here. Don't use `World::commands` somehow while you are using
+/// `WCommands`
 #[derive(Deref, DerefMut)]
 pub struct WCommands<'w,'s> {
     v: Commands<'w,'s>,
 }
-pub struct Internal {
-    queue: Option<CommandQueue>,
-    // res_state: ComponentId,
-}
+pub struct Internal;
 impl Resource for Internal{}
-// Rust safety is actually broken here. Don't use World::Commands somehow while you are using
-// WCommands
-unsafe impl<'w,'s> SystemParam for WCommands<'w,'s> {
+/// Rust safety is actually broken here. Don't use `World::commands` somehow while you are using
+// SAFETY:
+unsafe impl<'w> SystemParam for WCommands<'w,'_> {
     type State = ();
 
     type Item<'world, 'state> = WCommands<'world,'world>;
@@ -25,7 +23,7 @@ unsafe impl<'w,'s> SystemParam for WCommands<'w,'s> {
         system_meta.set_has_deferred();
     }
 
-    /// # Safety:  world was got from as_unsafe_world_cell
+    /// # Safety:  world was got from `as_unsafe_world_cell`
     /// that is world in not read only. no parallelism.
     unsafe fn get_param<'world, 'state>(
         _: &'state mut Self::State,
@@ -38,7 +36,7 @@ unsafe impl<'w,'s> SystemParam for WCommands<'w,'s> {
         let queue = world.get_raw_command_queue();
         // Safety #
         // queue lives and dies with world.
-        let commands = Commands::new_raw_from_entities(queue, &world.entities());
+        let commands = Commands::new_raw_from_entities(queue, world.entities());
         return WCommands{v:commands};
     }
 

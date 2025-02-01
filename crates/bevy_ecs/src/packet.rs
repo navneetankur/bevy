@@ -13,6 +13,13 @@ use crate::system::{Resource, System};
 use smallvec::SmallVec;
 use crate::{system::BoxedSystem, world::World};
 
+pub fn next_packet_id(world: &mut World) -> usize {
+    let rv = world.extras.next_packet_id;
+    // 0 for E, 1 for &E, w for &[E]
+    world.extras.next_packet_id += 3;
+    return rv;
+}
+
 pub struct PacketInSystem<E: SystemInput> {
     pub v: BoxedSystem<E, ()>,
     pub tid: TypeId,

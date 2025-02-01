@@ -39,6 +39,8 @@ derive_more = { version = "1", default-features = false, features = [
   "display",
   "into",
   "as_ref",
+  "deref",
+  "deref_mut",
 ] }
 nonmax = "0.5"
 arrayvec = { version = "0.7.4", optional = true }
