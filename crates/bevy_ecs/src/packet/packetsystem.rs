@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use crate::{
-    archetype::{ArchetypeComponentId},
+    archetype::ArchetypeComponentId,
     component::{ComponentId, Tick},
     query::Access,
     system::{
@@ -10,7 +10,7 @@ use crate::{
     world::{unsafe_world_cell::UnsafeWorldCell, DeferredWorld, World},
 };
 
-use super::{OptionPacket};
+use super::OptionPacket;
 
 pub trait IntoPacketSystem<In: SystemInput, Out, Marker>: Sized {
     type System: System<In = In, Out = ()>;

@@ -1,11 +1,11 @@
 use core::any::Any;
 
-use crate::world::CommandQueue;
+use crate::world::command_queue::RawCommandQueue;
 
 pub struct Extras {
     pub packet_systems: Vec<Option<Box<dyn Any>>>,
     pub next_packet_id: usize,
-    pub queue: Option<CommandQueue>,
+    pub queue: RawCommandQueue,
 }
 
 impl Default for Extras {
@@ -13,7 +13,7 @@ impl Default for Extras {
         Self {
             packet_systems: Vec::with_capacity(100),
             next_packet_id: 0,
-            queue: Some(Default::default()),
+            queue: RawCommandQueue::new(),
         }
     }
 }

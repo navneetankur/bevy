@@ -1,5 +1,10 @@
-use crate::{entity::Entity, system::{Commands, EntityCommands, ResMut, Resource, SystemParam}, world::{CommandQueue, World}};
+use derive_more::derive::{Deref, DerefMut};
 
+use crate::{system::{Commands, ResMut, Resource, SystemParam}, world::{CommandQueue, World}};
+
+/// Rust safety is actually broken here. Don't use World::Commands somehow while you are using
+/// WCommands
+#[derive(Deref, DerefMut)]
 pub struct WCommands<'w,'s> {
     v: Commands<'w,'s>,
 }
@@ -8,60 +13,50 @@ pub struct Internal {
     // res_state: ComponentId,
 }
 impl Resource for Internal{}
+// Rust safety is actually broken here. Don't use World::Commands somehow while you are using
+// WCommands
 unsafe impl<'w,'s> SystemParam for WCommands<'w,'s> {
-    type State = Internal;
+    type State = ();
 
-    type Item<'world, 'state> = WCommands<'world,'state>;
+    type Item<'world, 'state> = WCommands<'world,'world>;
 
     fn init_state(world: &mut World, system_meta: &mut crate::system::SystemMeta) -> Self::State {
         let _res_state = <ResMut<'w, Internal> as SystemParam>::init_state(world, system_meta);
-        return Internal { queue: None,
-        // res_state
-        };
+        system_meta.set_has_deferred();
     }
 
     /// # Safety:  world was got from as_unsafe_world_cell
     /// that is world in not read only. no parallelism.
     unsafe fn get_param<'world, 'state>(
-        state: &'state mut Self::State,
+        _: &'state mut Self::State,
         _: &crate::system::SystemMeta,
         world: crate::world::unsafe_world_cell::UnsafeWorldCell<'world>,
         _: crate::component::Tick,
     ) -> Self::Item<'world, 'state> {
-        // Safety: world was got from as_unsafe_world_cell
-        let queue = world.world_mut().extras.queue.take().unwrap();
-        state.queue = Some(queue);
-        let commands = Commands::new_from_entities(state.queue.as_mut().unwrap(), &world.entities());
-        let rv = WCommands{v: commands};
-        return rv;
+        // Safety #
+        //this world should have been created from &mut World, as there is no parallalism.
+        let queue = world.get_raw_command_queue();
+        // Safety #
+        // queue lives and dies with world.
+        let commands = Commands::new_raw_from_entities(queue, &world.entities());
+        return WCommands{v:commands};
     }
 
-    fn apply(state: &mut Self::State, _: &crate::system::SystemMeta, world: &mut World) {
-        // let Some(mut queue) = state.queue.take() else {return};
-        let mut queue = state.queue.take().unwrap();
-        queue.apply(world);
-        debug_assert!(world.extras.queue.is_none());
-        world.extras.queue = Some(queue);
+    fn apply(_: &mut Self::State, _: &crate::system::SystemMeta, world: &mut World) {
+        world.flush();
     }
 
     fn queue(_: &mut Self::State, _: &crate::system::SystemMeta, _: crate::world::DeferredWorld) {
         unimplemented!()
     }
 
-//     unsafe fn validate_param(
-//         state: &Self::State,
-//         system_meta: &crate::system::SystemMeta,
-//         world: crate::world::unsafe_world_cell::UnsafeWorldCell,
-//     ) -> bool {
-//         <ResMut<'w, Internal> as SystemParam>::validate_param(&state.res_state, system_meta, world)
-//     }
 }
 
-impl<'w, 's> WCommands<'w, 's> {
-    pub fn entity(&mut self, entity: Entity) -> EntityCommands {
-        self.v.entity(entity)
-    }
-    pub fn spawn_empty(&mut self) -> EntityCommands {
-        self.v.spawn_empty()
-    }
-}
+// impl<'w, 's> WCommands<'w, 's> {
+//     pub fn entity(&mut self, entity: Entity) -> EntityCommands {
+//         self.v.entity(entity)
+//     }
+//     pub fn spawn_empty(&mut self) -> EntityCommands {
+//         self.v.spawn_empty()
+//     }
+// }
