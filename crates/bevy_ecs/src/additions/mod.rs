@@ -7,7 +7,7 @@ use crate::{packet::OptionPacket, system::{ReadOnlySystemParam, Res, ResMut, Res
 
 impl World {
     pub fn run_once_with<T, In, Out, Marker>(
-        mut self,
+        &mut self,
         input: SystemIn<'_, T::System>,
         system: T,
     )
@@ -17,11 +17,11 @@ impl World {
         In: crate::packet::SystemInput,
     {
         let mut system: T::System = crate::system::IntoSystem::into_system(system);
-        System::initialize(&mut system, &mut self);
-        system.run(input, &mut self).run(&mut self);
+        System::initialize(&mut system, self);
+        system.run(input, self).run(self);
     }
     pub fn run_once<T, Out, Marker>(
-        self,
+        &mut self,
         system: T,
     )
     where
@@ -31,7 +31,7 @@ impl World {
         self.run_once_with((), system);
     }
     pub fn run_once_cached_with<T, In, Out, Marker>(
-        mut self,
+        &mut self,
         input: SystemIn<'_, T::System>,
         system: T,
     )
@@ -44,18 +44,18 @@ impl World {
         impl<S: System> Resource for ASystem<S> {}
         // don't forget to put back.
         if let Some(mut a_system) = self.remove_resource::<ASystem<T::System>>() {
-            a_system.0.run(input, &mut self).run(&mut self);
+            a_system.0.run(input, self).run(self);
             // put back.
             self.insert_resource(a_system);
             return;
         }
         let mut system: T::System = crate::system::IntoSystem::into_system(system);
-        System::initialize(&mut system, &mut self);
-        system.run(input, &mut self).run(&mut self);
+        System::initialize(&mut system, self);
+        system.run(input, self).run(self);
         self.insert_resource(ASystem(system));
     }
     pub fn run_once_cached<T, Out, Marker>(
-        self,
+        &mut self,
         system: T,
     )
     where
