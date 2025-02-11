@@ -315,12 +315,40 @@ pub fn derive_packet(input: TokenStream) -> TokenStream {
     let struct_name = &ast.ident;
     let (impl_generics, type_generics, where_clause) = &ast.generics.split_for_impl();
 
-    TokenStream::from(quote! {
+    let mut ts = smol_id_inner(impl_generics, type_generics, where_clause, &bevy_ecs_path, struct_name);
+    let ts2 = TokenStream::from(quote! {
         impl #impl_generics #bevy_ecs_path::packet::Packet for #struct_name #type_generics #where_clause {
             // fn run_systems(self: Box<Self>, world: &mut #bevy_ecs_path::world::World) {
             //     #bevy_ecs_path::event::run_this_boxed_event_system::<Self>(self, world);
             // }
         }
+        impl #impl_generics #bevy_ecs_path::packet::SystemInput for #struct_name #type_generics #where_clause {
+            type Param<'i> = Self;
+            type Inner<'i> = Self;
+            fn wrap(this: Self::Inner<'_>) -> Self::Param<'_> {
+                this
+            }
+        }
+    });
+    ts.extend(ts2);
+    return ts;
+}
+pub fn derive_smol_id(input: TokenStream) -> TokenStream {
+    let mut ast = parse_macro_input!(input as DeriveInput);
+    let bevy_ecs_path: Path = crate::bevy_ecs_path();
+
+    ast.generics
+        .make_where_clause()
+        .predicates
+        .push(parse_quote! { Self: Send + Sync + 'static });
+
+    let struct_name = &ast.ident;
+    let (impl_generics, type_generics, where_clause) = &ast.generics.split_for_impl();
+    return smol_id_inner(impl_generics, type_generics, where_clause, &bevy_ecs_path, struct_name);
+}
+
+fn smol_id_inner(impl_generics: &syn::ImplGenerics<'_>, type_generics: &syn::TypeGenerics<'_>, where_clause: &Option<&syn::WhereClause>, bevy_ecs_path: &Path, struct_name: &Ident) -> TokenStream {
+    TokenStream::from(quote! {
         impl #impl_generics #bevy_ecs_path::packet::SmolId for #struct_name #type_generics #where_clause {
             fn sid(world: &mut #bevy_ecs_path::world::World) -> usize {
                 use std::sync::atomic::Ordering;
@@ -334,13 +362,6 @@ pub fn derive_packet(input: TokenStream) -> TokenStream {
                     unsafe { INDEX = Some(id); }
                     return id;
                 }
-            }
-        }
-        impl #impl_generics #bevy_ecs_path::packet::SystemInput for #struct_name #type_generics #where_clause {
-            type Param<'i> = Self;
-            type Inner<'i> = Self;
-            fn wrap(this: Self::Inner<'_>) -> Self::Param<'_> {
-                this
             }
         }
     })

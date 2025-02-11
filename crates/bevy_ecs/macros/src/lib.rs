@@ -736,6 +736,11 @@ pub fn derive_substates(input: TokenStream) -> TokenStream {
     states::derive_substates(input)
 }
 
+#[proc_macro_derive(SmolId)]
+pub fn derive_smol_id(input: TokenStream) -> TokenStream {
+    component::derive_smol_id(input)
+}
+
 #[proc_macro_derive(Packet)]
 pub fn derive_packet(input: TokenStream) -> TokenStream {
     component::derive_packet(input)
