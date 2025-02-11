@@ -8,6 +8,7 @@ use core::any::{type_name, TypeId};
 use crate::{self as bevy_ecs, system::Commands};
 pub use crate::system::SystemInput;
 pub use bevy_ecs_macros::Packet;
+pub use bevy_ecs_macros::SmolId;
 use packetsystem::IntoPacketSystem;
 use crate::system::{Resource, System};
 use smallvec::SmallVec;
