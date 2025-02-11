@@ -9,7 +9,7 @@ impl OptionPacket for (){ fn run(self, _: &mut World) {} }
 
 impl<E: Packet> OptionPacket for E
 where 
-    E: SystemInput<Inner<'static> = E>,
+    for<'e> E: SystemInput<Inner<'e> = E>,
     for<'b> &'b E: SmolId,
     for<'c> &'c [E]: SmolId,
 {

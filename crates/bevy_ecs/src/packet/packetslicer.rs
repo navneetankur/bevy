@@ -21,7 +21,7 @@ impl<E: Packet> DerefMut for PacketSlicer<'_, E> {
 
 unsafe impl<E: Packet> SystemParam for PacketSlicer<'_, E>
 where 
-    E: SystemInput<Inner<'static> = E>,
+    for<'e> E: SystemInput<Inner<'e> = E>,
     for<'b> &'b E: SmolId,
     for<'c> &'c [E]: SmolId,
 {
@@ -53,7 +53,7 @@ where
 }
 unsafe impl<E: Packet> ReadOnlySystemParam for PacketSlicer<'_, E>
 where 
-    E: SystemInput<Inner<'static> = E>,
+    for<'e> E: SystemInput<Inner<'e> = E>,
     for<'b> &'b E: SmolId,
     for<'c> &'c [E]: SmolId,
 {}
@@ -83,7 +83,7 @@ pub struct PacketVec<P: Packet>(Vec<P>);
 
 impl<P: Packet> OptionPacket for PacketVec<P>
 where 
-    P: SystemInput<Inner<'static> = P>,
+    for<'e> P: SystemInput<Inner<'e> = P>,
 {
     fn run(self, world: &mut World) {
         run_for_slice_packet(world, &self.0);

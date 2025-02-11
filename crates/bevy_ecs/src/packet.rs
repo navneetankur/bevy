@@ -82,7 +82,7 @@ struct PacketInMotion(Vec<TypeId>);
 pub fn run_this_packet_system<'a, const SLICE: bool, E>(event: E, world: &mut World)
 where 
     E: Packet,
-    E: SystemInput<Inner<'static> = E>,
+    for<'d> E: SystemInput<Inner<'d> = E>,
     for<'b> &'b E: SmolId,
     for<'c> &'c [E]: SmolId,
 {
@@ -109,7 +109,7 @@ where
 fn run_for_val_packet<E>(world: &mut World, event: E)
 where
     E: Packet,
-    E: SystemInput<Inner<'static> = E>
+    E: for<'e> SystemInput<Inner<'e> = E>
 {
     world.with_packet_system::<E>(|world, systems| {
         let mut systems_iter = systems.v.iter_mut();
@@ -158,7 +158,8 @@ pub trait Eventy: SystemInput{}
 impl World {
     pub fn send<'a,'b,E>(&mut self, packet: E)
     where
-        E: Packet + SystemInput<Inner<'static> = E>,
+        E: Packet,
+        E: for<'e> SystemInput<Inner<'e> = E>,
         for<'d> &'d E: SmolId,
         for<'c> &'c [E]: SmolId,
     {
@@ -216,7 +217,8 @@ impl World {
 impl<'w,'s> Commands<'w,'s> {
     pub fn send<E>(&mut self, packet: E)
     where
-        E: Packet + SystemInput<Inner<'static> = E>,
+        E: Packet,
+        for<'e> E: SystemInput<Inner<'e> = E>,
         for<'d> &'d E: SmolId,
         for<'c> &'c [E]: SmolId,
     {
