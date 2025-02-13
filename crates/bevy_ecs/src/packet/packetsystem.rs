@@ -16,7 +16,7 @@ pub trait IntoPacketSystem<In: SystemInput, Out, Marker>: Sized {
     type System: System<In = In, Out = ()>;
     fn into_system(this: Self) -> Self::System;
 }
-pub struct PacketSystem<Marker, F>
+pub struct FunctionPacketSystem<Marker, F>
 where
     F: SystemParamFunction<Marker>,
 {
@@ -29,13 +29,13 @@ where
     F::Out: OptionPacket,
     // <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event: SystemInput<Inner<'static> = <<F as SystemParamFunction<Marker>>::Out as OptionEvent>::Event>,
 {
-    type System = PacketSystem<Marker, F>;
+    type System = FunctionPacketSystem<Marker, F>;
     fn into_system(func: Self) -> Self::System {
         let inner = IntoSystem::into_system(func);
-        return PacketSystem { inner };
+        return FunctionPacketSystem { inner };
     }
 }
-impl<Marker, F> System for PacketSystem<Marker, F>
+impl<Marker, F> System for FunctionPacketSystem<Marker, F>
 where
     Marker: 'static,
     F: SystemParamFunction<Marker>,
