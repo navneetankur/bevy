@@ -40,19 +40,7 @@ impl World {
         T: crate::system::IntoSystem<In, Out, Marker>,
         In: crate::packet::SystemInput,
     {
-        struct ASystem<S: System>(S);
-        impl<S: System> Resource for ASystem<S> {}
-        // don't forget to put back.
-        if let Some(mut a_system) = self.remove_resource::<ASystem<T::System>>() {
-            a_system.0.run(input, self).run(self);
-            // put back.
-            self.insert_resource(a_system);
-            return;
-        }
-        let mut system: T::System = crate::system::IntoSystem::into_system(system);
-        System::initialize(&mut system, self);
-        system.run(input, self).run(self);
-        self.insert_resource(ASystem(system));
+        self.run_once_np_cached_with(input, system).run(self)
     }
     pub fn run_once_cached<T, Out, Marker>(
         &mut self,
@@ -63,6 +51,30 @@ impl World {
         T: crate::system::IntoSystem<(), Out, Marker>,
     {
         self.run_once_cached_with((), system);
+    }
+    pub fn run_once_np_cached_with<T, In, Out, Marker>(
+        &mut self,
+        input: SystemIn<'_, T::System>,
+        system: T,
+    ) -> Out
+    where
+        T: crate::system::IntoSystem<In, Out, Marker>,
+        In: crate::prelude::SystemInput,
+    {
+        struct ASystem<S: System>(S);
+        impl<S: System> Resource for ASystem<S> {}
+        // don't forget to put back.
+        if let Some(mut a_system) = self.remove_resource::<ASystem<T::System>>() {
+            let rv = a_system.0.run(input, self);
+            // put back.
+            self.insert_resource(a_system);
+            return rv;
+        }
+        let mut system: T::System = crate::system::IntoSystem::into_system(system);
+        System::initialize(&mut system, self);
+        let rv = system.run(input, self);
+        self.insert_resource(ASystem(system));
+        return rv;
     }
 }
 
