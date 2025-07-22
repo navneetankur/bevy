@@ -42,6 +42,7 @@ exclude = [
 
 [workspace.lints.clippy]
 manual_let_else = "warn"
+needless_return = "allow"
 
 [workspace.lints.rust]
 unused_qualifications = "warn"
