@@ -501,14 +501,14 @@ mod test {
     // should be reworked.
     // This test asserts that Command types are send.
     fn assert_is_send_impl(_: impl Send) {}
-    fn assert_is_send(command: impl Command) {
-        assert_is_send_impl(command);
-    }
+    // fn assert_is_send(command: impl Command) {
+    //     assert_is_send_impl(command);
+    // }
 
-    #[test]
-    fn test_command_is_send() {
-        assert_is_send(SpawnCommand);
-    }
+    // #[test]
+    // fn test_command_is_send() {
+    //     assert_is_send(SpawnCommand);
+    // }
 
     #[expect(
         dead_code,

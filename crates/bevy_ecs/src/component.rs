@@ -482,7 +482,7 @@ use thiserror::Error;
     label = "invalid `Component`",
     note = "consider annotating `{Self}` with `#[derive(Component)]`"
 )]
-pub trait Component: Send + Sync + 'static {
+pub trait Component: 'static {
     /// A constant indicating the storage type used for this component.
     const STORAGE_TYPE: StorageType;
 

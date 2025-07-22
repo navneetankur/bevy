@@ -17,12 +17,12 @@ use super::{IntoSystem, SystemParamValidationError};
 
 /// Implemented for [`System`]s that have a [`Trigger`] as the first argument.
 pub trait ObserverSystem<E: 'static, B: Bundle, Out = Result>:
-    System<In = Trigger<'static, E, B>, Out = Out> + Send + 'static
+    System<In = Trigger<'static, E, B>, Out = Out> + 'static
 {
 }
 
 impl<E: 'static, B: Bundle, Out, T> ObserverSystem<E, B, Out> for T where
-    T: System<In = Trigger<'static, E, B>, Out = Out> + Send + 'static
+    T: System<In = Trigger<'static, E, B>, Out = Out> + 'static
 {
 }
 
@@ -38,7 +38,7 @@ impl<E: 'static, B: Bundle, Out, T> ObserverSystem<E, B, Out> for T where
     label = "the trait `IntoObserverSystem` is not implemented",
     note = "for function `ObserverSystem`s, ensure the first argument is a `Trigger<T>` and any subsequent ones are `SystemParam`"
 )]
-pub trait IntoObserverSystem<E: 'static, B: Bundle, M, Out = Result>: Send + 'static {
+pub trait IntoObserverSystem<E: 'static, B: Bundle, M, Out = Result>: 'static {
     /// The type of [`System`] that this instance converts into.
     type System: ObserverSystem<E, B, Out>;
 

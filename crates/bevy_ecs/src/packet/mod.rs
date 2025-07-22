@@ -38,7 +38,7 @@ pub struct RegisteredSystems<E: SystemInput>{
 //     fn as_registered_systems<F: SystemInput>(&mut self) -> &mut RegisteredSystems<F> {self}
 // }
 
-pub trait Packet: Send + Sync + SystemInput + SmolId + 'static { }
+pub trait Packet: SystemInput + SmolId + 'static { }
 pub trait SmolId { fn sid(world: &mut World) -> usize; }
 
 pub fn register_system<I, Out, F, M>(world: &mut World, f: F)

@@ -45,7 +45,7 @@ use crate::{
 ///     commands.queue(AddToCounter(42));
 /// }
 /// ```
-pub trait Command<Out = ()>: Send + 'static {
+pub trait Command<Out = ()>: 'static {
     /// Applies this command, causing it to mutate the provided `world`.
     ///
     /// This method is used to define what a command "does" when it is ultimately applied.
@@ -56,7 +56,7 @@ pub trait Command<Out = ()>: Send + 'static {
 
 impl<F, Out> Command<Out> for F
 where
-    F: FnOnce(&mut World) -> Out + Send + 'static,
+    F: FnOnce(&mut World) -> Out + 'static,
 {
     fn apply(self, world: &mut World) -> Out {
         self(world)

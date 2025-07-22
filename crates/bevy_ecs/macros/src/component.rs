@@ -63,7 +63,7 @@ pub fn derive_resource(input: TokenStream) -> TokenStream {
     ast.generics
         .make_where_clause()
         .predicates
-        .push(parse_quote! { Self: Send + Sync + 'static });
+        .push(parse_quote! { Self: 'static });
 
     let struct_name = &ast.ident;
     let (impl_generics, type_generics, where_clause) = &ast.generics.split_for_impl();
@@ -189,7 +189,7 @@ pub fn derive_component(input: TokenStream) -> TokenStream {
     ast.generics
         .make_where_clause()
         .predicates
-        .push(parse_quote! { Self: Send + Sync + 'static });
+        .push(parse_quote! { Self: 'static });
 
     let requires = &attrs.requires;
     let mut register_required = Vec::with_capacity(attrs.requires.iter().len());
@@ -305,9 +305,9 @@ pub fn derive_packet(input: TokenStream) -> TokenStream {
     let bevy_ecs_path: Path = crate::bevy_ecs_path();
 
     ast.generics
-        .make_where_clause()
-        .predicates
-        .push(parse_quote! { Self: Send + Sync + 'static });
+        .make_where_clause();
+        // .predicates
+        // .push(parse_quote! { Self: Send + Sync + 'static });
 
     let struct_name = &ast.ident;
     let (impl_generics, type_generics, where_clause) = &ast.generics.split_for_impl();
