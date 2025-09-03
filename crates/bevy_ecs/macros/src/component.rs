@@ -357,7 +357,8 @@ fn smol_id_inner(impl_generics: &syn::ImplGenerics<'_>, type_generics: &syn::Typ
                 static mut INDEX: Option<usize> = None;
                 if let Some(index) = unsafe {INDEX} { return index; }
                 else {
-                    let id = #bevy_ecs_path::packet::next_packet_id(world);
+                    // # Safety : fn will be called in single threaded context.
+                    let id = unsafe {#bevy_ecs_path::packet::next_packet_id(world)};
                     // Safety #
                     // we take &mut World. So there is no parallel call to 
                     // this fn if we assume there is single world.

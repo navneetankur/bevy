@@ -17,10 +17,11 @@ use crate::resource::Resource;
 use smallvec::SmallVec;
 use crate::{system::BoxedSystem, world::World};
 
-pub fn next_packet_id(world: &mut World) -> usize {
-    let rv = world.extras.next_packet_id;
+pub unsafe fn next_packet_id(world: &mut World) -> usize {
+    static mut NEXT_PACKET_ID: usize = 0;
+    let rv = NEXT_PACKET_ID;
     // 0 for E, 1 for &E, w for &[E]
-    world.extras.next_packet_id += 3;
+    NEXT_PACKET_ID += 3;
     return rv;
 }
 
