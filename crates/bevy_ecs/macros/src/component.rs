@@ -317,8 +317,7 @@ pub fn derive_packet(input: TokenStream) -> TokenStream {
         quote! {<'i>}
     };
 
-    let mut ts = smol_id_inner(impl_generics, type_generics, where_clause, &bevy_ecs_path, struct_name);
-    let ts2 = TokenStream::from(quote! {
+    let ts = TokenStream::from(quote! {
         impl #impl_generics #bevy_ecs_path::packet::Packet for #struct_name #type_generics #where_clause {
             // fn run_systems(self: Box<Self>, world: &mut #bevy_ecs_path::world::World) {
             //     #bevy_ecs_path::event::run_this_boxed_event_system::<Self>(self, world);
@@ -332,42 +331,7 @@ pub fn derive_packet(input: TokenStream) -> TokenStream {
             }
         }
     });
-    ts.extend(ts2);
     return ts;
-}
-pub fn derive_smol_id(input: TokenStream) -> TokenStream {
-    let mut ast = parse_macro_input!(input as DeriveInput);
-    let bevy_ecs_path: Path = crate::bevy_ecs_path();
-
-    ast.generics
-        .make_where_clause()
-        .predicates
-        .push(parse_quote! { Self: Send + Sync + 'static });
-
-    let struct_name = &ast.ident;
-    let (impl_generics, type_generics, where_clause) = &ast.generics.split_for_impl();
-    return smol_id_inner(impl_generics, type_generics, where_clause, &bevy_ecs_path, struct_name);
-}
-
-fn smol_id_inner(impl_generics: &syn::ImplGenerics<'_>, type_generics: &syn::TypeGenerics<'_>, where_clause: &Option<&syn::WhereClause>, bevy_ecs_path: &Path, struct_name: &Ident) -> TokenStream {
-    TokenStream::from(quote! {
-        impl #impl_generics #bevy_ecs_path::packet::SmolId for #struct_name #type_generics #where_clause {
-            fn sid(world: &mut #bevy_ecs_path::world::World) -> usize {
-                use std::sync::atomic::Ordering;
-                static mut INDEX: Option<usize> = None;
-                if let Some(index) = unsafe {INDEX} { return index; }
-                else {
-                    // # Safety : fn will be called in single threaded context.
-                    let id = unsafe {#bevy_ecs_path::packet::next_packet_id(world)};
-                    // Safety #
-                    // we take &mut World. So there is no parallel call to 
-                    // this fn if we assume there is single world.
-                    unsafe { INDEX = Some(id); }
-                    return id;
-                }
-            }
-        }
-    })
 }
 
 const ENTITIES: &str = "entities";

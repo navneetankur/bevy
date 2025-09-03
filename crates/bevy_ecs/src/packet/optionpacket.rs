@@ -1,6 +1,6 @@
 use crate::world::World;
 
-use super::{run_this_packet_system, Packet, SmolId, SystemInput};
+use super::{run_this_packet_system, Packet, SystemInput};
 
 pub trait OptionPacket {
     fn run(self, world: &mut World);
@@ -10,8 +10,6 @@ impl OptionPacket for (){ fn run(self, _: &mut World) {} }
 impl<E: Packet> OptionPacket for E
 where 
     for<'e> E: SystemInput<Inner<'e> = E>,
-    for<'b> &'b E: SmolId,
-    for<'c> &'c [E]: SmolId,
 {
     fn run(self, world: &mut World) {
         run_this_packet_system::<true, E>(self, world);

@@ -6,25 +6,12 @@ mod optionpacket;
 pub use optionpacket::OptionPacket;
 use core::any::{type_name, TypeId};
 use std::boxed::Box;
-use std::vec::Vec;
-use crate::{self as bevy_ecs, system::Commands};
 pub use crate::system::SystemInput;
 pub use bevy_ecs_macros::Packet;
-pub use bevy_ecs_macros::SmolId;
 use packetsystem::IntoPacketSystem;
-use crate::system::{System};
-use crate::resource::Resource;
+use crate::system::{Commands, System};
 use smallvec::SmallVec;
 use crate::{system::BoxedSystem, world::World};
-
-pub unsafe fn next_packet_id(world: &mut World) -> usize {
-    static mut NEXT_PACKET_ID: usize = 0;
-    let rv = NEXT_PACKET_ID;
-    // 0 for E, 1 for &E, w for &[E]
-    NEXT_PACKET_ID += 3;
-    return rv;
-}
-
 pub struct PacketInSystem<E: SystemInput> {
     pub v: BoxedSystem<E, ()>,
     pub tid: TypeId,
@@ -32,25 +19,15 @@ pub struct PacketInSystem<E: SystemInput> {
 pub struct RegisteredSystems<E: SystemInput>{
     pub v: SmallVec<[PacketInSystem<E>; 1]>,
 }
-// pub trait IRegisteredSystem {
-//     fn as_registered_systems<E: SystemInput>(&mut self) -> &mut RegisteredSystems<E>;
-// }
-// impl<E: SystemInput> IRegisteredSystem for RegisteredSystems<E>{
-//     fn as_registered_systems<F: SystemInput>(&mut self) -> &mut RegisteredSystems<F> {self}
-// }
-
-pub trait Packet: SystemInput + SmolId + 'static { }
-pub trait SmolId { fn sid(world: &mut World) -> usize; }
+pub trait Packet: SystemInput + 'static { }
 
 pub fn register_system<I, Out, F, M>(world: &mut World, f: F)
 where
-    I: SystemInput + SmolId + 'static,
+    I: SystemInput + 'static,
     Out: OptionPacket,
     F: IntoPacketSystem<I, Out, M> + 'static,
     M: 'static,
 {
-    #[cfg(debug_assertions)]
-    world.init_resource::<PacketInMotion>();
     // don't forget to put it back.
     let mut systems = world.remove_packet_system::<I>().unwrap_or_default();
 
@@ -71,7 +48,7 @@ where
 }
 pub fn unregister_system<I, Out, F, M>(world: &mut World, _: F)
 where
-    I: SystemInput + SmolId + 'static,
+    I: SystemInput + 'static,
     Out: OptionPacket,
     F: IntoPacketSystem<I, Out, M> + 'static,
     M: 'static,
@@ -81,38 +58,20 @@ where
         systems.v.retain(|s| s.tid != tid);
     });
 }
-#[derive(Resource, Default)]
-struct PacketInMotion(Vec<TypeId>);
 pub fn run_this_packet_system<'a, const SLICE: bool, E>(event: E, world: &mut World)
 where 
     E: Packet,
     for<'d> E: SystemInput<Inner<'d> = E>,
-    for<'b> &'b E: SmolId,
-    for<'c> &'c [E]: SmolId,
 {
-    #[cfg(debug_assertions)]
-    {
-        let mut in_motion = world.resource_mut::<PacketInMotion>();
-        if in_motion.0.contains(&TypeId::of::<E>()) {
-            panic!("Recursive event {:?}", type_name::<E>());
-        } else {
-            in_motion.0.push(TypeId::of::<E>());
-        }
-    }
     run_for_ref_packet(world, &event);
     if SLICE { run_for_single_slice_packet(world, &event); }
     run_for_val_packet(world, event);
-    #[cfg(debug_assertions)]
-    {
-        let mut in_motion = world.resource_mut::<PacketInMotion>();
-        let index = in_motion.0.iter().position(|x| *x == TypeId::of::<E>()).unwrap();
-        in_motion.0.swap_remove(index);
-    }
 }
 
 fn run_for_val_packet<E>(world: &mut World, event: E)
 where
     E: Packet,
+    // E: SystemInput<Inner<'_> = E>,
     E: for<'e> SystemInput<Inner<'e> = E>
 {
     world.with_packet_system::<E>(|world, systems| {
@@ -126,8 +85,6 @@ where
 fn run_for_ref_packet<E>(world: &mut World, event: &E)
 where
     E: Packet,
-    for<'a> &'a E: SmolId,
-    // E: SystemInput<Inner<'static> = E>
 {
     world.with_packet_system::<&E>(|world, systems| {
         for system in &mut systems.v {
@@ -138,8 +95,6 @@ where
 fn run_for_single_slice_packet<E>(world: &mut World, event: &E)
 where
     E: Packet,
-    for<'a> &'a [E]: SmolId,
-    // E: SystemInput<Inner<'static> = E>
 {
     //don't forget to put it back.
     // let Some(mut systems) = world.remove_event_system::<&[E]>() else {return;};
@@ -157,22 +112,18 @@ impl<E: SystemInput> Default for RegisteredSystems<E> {
         RegisteredSystems { v: Default::default()}
     }
 }
-pub trait Eventy: SystemInput{}
-
 impl World {
     pub fn send<'a,'b,E>(&mut self, packet: E)
     where
         E: Packet,
         E: for<'e> SystemInput<Inner<'e> = E>,
-        for<'d> &'d E: SmolId,
-        for<'c> &'c [E]: SmolId,
     {
         run_this_packet_system::<true, E>(packet, self);
     }
 
     pub fn register_packet_system<I, Out, F, M>(&mut self, f: F)
     where
-        I: SystemInput + SmolId+ 'static,
+        I: SystemInput + 'static,
         Out: OptionPacket,
         F: IntoPacketSystem<I,Out, M> + 'static,
         M: 'static,
@@ -181,7 +132,7 @@ impl World {
     }
     pub fn unregister_packet_system<I, Out, F, M>(&mut self, f: F)
     where
-        I: SystemInput + SmolId+ 'static,
+        I: SystemInput + 'static,
         Out: OptionPacket,
         F: IntoPacketSystem<I,Out, M> + 'static,
         M: 'static,
@@ -191,7 +142,7 @@ impl World {
 
     fn with_packet_system<I>(&mut self, f: impl FnOnce(&mut World, &mut RegisteredSystems<I>),)
     where 
-        I: SystemInput + SmolId + 'static,
+        I: SystemInput + 'static,
     {
         let Some(mut systems) = self.remove_packet_system::<I>() else {return};
         f(self, &mut systems);
@@ -199,22 +150,14 @@ impl World {
     }
 
     /// don't forget to put it back.
-    fn remove_packet_system<I: SystemInput + SmolId + 'static>(&mut self) -> Option<Box<RegisteredSystems<I>>> {
-        let event_index = I::sid(self);
-        let event_systems = &mut self.extras.packet_systems;
-        if event_systems.len() <= event_index {
-            event_systems.resize_with(event_index + 1, || None);
-            return None;
-        }
-        let rv = event_systems[event_index].take();
-        return rv.map(|v| v.downcast().unwrap());
+    fn remove_packet_system<I: SystemInput + 'static>(&mut self) -> Option<Box<RegisteredSystems<I>>> {
+        self.extras.packet_systems.remove(&TypeId::of::<I>()).map(|v|v.downcast().unwrap())
     }
 
-    fn put_back_packet_system<I: SystemInput + SmolId + 'static>(&mut self, systems: Box<RegisteredSystems<I>>) {
-        let event_index = I::sid(self);
-        let event_systems = &mut self.extras.packet_systems;
-        debug_assert!(event_systems[event_index].is_none());
-        event_systems[event_index] = Some(systems);
+    fn put_back_packet_system<I: SystemInput + 'static>(&mut self, systems: Box<RegisteredSystems<I>>) {
+        let packet_systems = &mut self.extras.packet_systems;
+        let prev = packet_systems.insert(TypeId::of::<I>(), systems);
+        debug_assert!(prev.is_none(), "can't register systems with packet in motion");
     }
 
 }
@@ -223,8 +166,6 @@ impl<'w,'s> Commands<'w,'s> {
     where
         E: Packet,
         for<'e> E: SystemInput<Inner<'e> = E>,
-        for<'d> &'d E: SmolId,
-        for<'c> &'c [E]: SmolId,
     {
         self.queue(move |world: &mut World| world.send(packet));
     }
@@ -235,12 +176,6 @@ impl<E: Packet> SystemInput for &E {
     fn wrap(this: Self::Inner<'_>) -> Self::Param<'_> {
         this
     }
-}
-impl<E: Packet + SmolId> SmolId for &E {
-    fn sid(world: &mut World) -> usize { E::sid(world) + 1 }
-}
-impl<E: Packet + SmolId> SmolId for &[E] {
-    fn sid(world: &mut World) -> usize { E::sid(world) + 2 }
 }
 
 

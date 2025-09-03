@@ -6,7 +6,7 @@ use derive_more::derive::{Deref, DerefMut};
 
 use crate::{system::{ReadOnlySystemParam, SystemParam}, world::World};
 
-use super::{run_this_packet_system, OptionPacket, Packet, SmolId, SystemInput};
+use super::{run_this_packet_system, OptionPacket, Packet, SystemInput};
 
 pub struct PacketSlicer<'s, E: Packet>(&'s mut Vec<E>);
 impl<'s, E: Packet> PacketSlicer<'s, E> {
@@ -20,11 +20,9 @@ impl<E: Packet> DerefMut for PacketSlicer<'_, E> {
     fn deref_mut(&mut self) -> &mut Self::Target { self.0 }
 }
 
-unsafe impl<E: Packet> SystemParam for PacketSlicer<'_, E>
+unsafe impl<E: Packet + 'static> SystemParam for PacketSlicer<'_, E>
 where 
     for<'e> E: SystemInput<Inner<'e> = E>,
-    for<'b> &'b E: SmolId,
-    for<'c> &'c [E]: SmolId,
 {
     type State = SyncCell<Vec<E>>;
 
@@ -52,11 +50,9 @@ where
        }
     }
 }
-unsafe impl<E: Packet> ReadOnlySystemParam for PacketSlicer<'_, E>
+unsafe impl<E: Packet + 'static> ReadOnlySystemParam for PacketSlicer<'_, E>
 where 
     for<'e> E: SystemInput<Inner<'e> = E>,
-    for<'b> &'b E: SmolId,
-    for<'c> &'c [E]: SmolId,
 {}
 
 impl<E: Packet> SystemInput for &[E] {
@@ -67,8 +63,6 @@ impl<E: Packet> SystemInput for &[E] {
 pub fn run_for_slice_packet<E>(world: &mut World, event_slice: &[E])
 where
     E: Packet,
-    for<'b> &'b E: SmolId,
-    for<'c> &'c [E]: SmolId,
 {
     //don't forget to put it back.
     let Some(mut systems) = world.remove_packet_system::<&[E]>() else {return;};

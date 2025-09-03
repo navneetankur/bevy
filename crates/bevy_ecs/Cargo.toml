@@ -96,6 +96,7 @@ critical-section = [
 ]
 
 [dependencies]
+typeid = "1.0"
 bevy_ptr = { version = "0.16.1" }
 bevy_reflect = { version = "0.16.1", features = [
   "smallvec",
