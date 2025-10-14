@@ -1586,9 +1586,9 @@ unsafe impl<'__w, T: Component> WorldQuery for &'__w mut T {
 unsafe impl<'__w, T: Component<Mutability = Mutable>> QueryData for &'__w mut T {
     const IS_READ_ONLY: bool = false;
     type ReadOnly = &'__w T;
-    type Item<'w> = Mut<'w, T>;
+    type Item<'w> = &'w mut T;
 
-    fn shrink<'wlong: 'wshort, 'wshort>(item: Mut<'wlong, T>) -> Mut<'wshort, T> {
+    fn shrink<'wlong: 'wshort, 'wshort>(item: &'wlong mut T) -> &'wshort mut T {
         item
     }
 
@@ -1622,7 +1622,7 @@ unsafe impl<'__w, T: Component<Mutability = Mutable>> QueryData for &'__w mut T 
                         last_run: fetch.last_run,
                     },
                     changed_by: caller.map(|caller| caller.deref_mut()),
-                }
+                }.into_inner()
             },
             |sparse_set| {
                 // SAFETY: The caller ensures `entity` is in range and has the component.
@@ -1633,11 +1633,11 @@ unsafe impl<'__w, T: Component<Mutability = Mutable>> QueryData for &'__w mut T 
                         .debug_checked_unwrap()
                 };
 
-                Mut {
+                Mut::<T> {
                     value: component.assert_unique().deref_mut(),
                     ticks: TicksMut::from_tick_cells(ticks, fetch.last_run, fetch.this_run),
                     changed_by: caller.map(|caller| caller.deref_mut()),
-                }
+                }.into_inner()
             },
         )
     }
@@ -1733,11 +1733,11 @@ unsafe impl<'__w, T: Component<Mutability = Mutable>> QueryData for Mut<'__w, T>
 
     // Forwarded to `&mut T`
     fn shrink<'wlong: 'wshort, 'wshort>(item: Mut<'wlong, T>) -> Mut<'wshort, T> {
-        <&mut T as QueryData>::shrink(item)
+        item
     }
 
     #[inline(always)]
-    // Forwarded to `&mut T`
+    // copy implementation on &mut T
     unsafe fn fetch<'w>(
         // Rust complains about lifetime bounds not matching the trait if I directly use `WriteFetch<'w, T>` right here.
         // But it complains nowhere else in the entire trait implementation.
@@ -1745,7 +1745,48 @@ unsafe impl<'__w, T: Component<Mutability = Mutable>> QueryData for Mut<'__w, T>
         entity: Entity,
         table_row: TableRow,
     ) -> Mut<'w, T> {
-        <&mut T as QueryData>::fetch(fetch, entity, table_row)
+        fetch.components.extract(
+            |table| {
+                // SAFETY: set_table was previously called
+                let (table_components, added_ticks, changed_ticks, callers) =
+                    unsafe { table.debug_checked_unwrap() };
+
+                // SAFETY: The caller ensures `table_row` is in range.
+                let component = unsafe { table_components.get(table_row.as_usize()) };
+                // SAFETY: The caller ensures `table_row` is in range.
+                let added = unsafe { added_ticks.get(table_row.as_usize()) };
+                // SAFETY: The caller ensures `table_row` is in range.
+                let changed = unsafe { changed_ticks.get(table_row.as_usize()) };
+                // SAFETY: The caller ensures `table_row` is in range.
+                let caller = callers.map(|callers| unsafe { callers.get(table_row.as_usize()) });
+
+                Mut {
+                    value: component.deref_mut(),
+                    ticks: TicksMut {
+                        added: added.deref_mut(),
+                        changed: changed.deref_mut(),
+                        this_run: fetch.this_run,
+                        last_run: fetch.last_run,
+                    },
+                    changed_by: caller.map(|caller| caller.deref_mut()),
+                }
+            },
+            |sparse_set| {
+                // SAFETY: The caller ensures `entity` is in range and has the component.
+                let (component, ticks, caller) = unsafe {
+                    sparse_set
+                        .debug_checked_unwrap()
+                        .get_with_ticks(entity)
+                        .debug_checked_unwrap()
+                };
+
+                Mut {
+                    value: component.assert_unique().deref_mut(),
+                    ticks: TicksMut::from_tick_cells(ticks, fetch.last_run, fetch.this_run),
+                    changed_by: caller.map(|caller| caller.deref_mut()),
+                }
+            },
+        )
     }
 }
 
