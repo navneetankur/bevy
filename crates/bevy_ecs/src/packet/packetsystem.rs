@@ -1,3 +1,5 @@
+use core::ops::Deref;
+
 use crate::{
     component::{Tick},
     system::{
@@ -110,7 +112,7 @@ where
         input: SystemIn<'_, Self>,
         world: &mut World,
     ) -> Result<Self::Out, crate::system::RunSystemError> {
-        let out = self.inner.run(input, world).unwrap();
+        let out = self.inner.run(input, world).expect(self.inner.name().deref());
         out.run(world);
         return Ok(());
     }

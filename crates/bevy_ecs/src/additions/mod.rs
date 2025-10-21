@@ -1,4 +1,6 @@
 pub mod extras;
+use core::ops::Deref;
+
 pub use extras::Extras;
 pub mod wcommands;
 
@@ -19,7 +21,7 @@ impl World {
     {
         let mut system: T::System = crate::system::IntoSystem::into_system(system);
         System::initialize(&mut system, self);
-        system.run(input, self).unwrap().run(self);
+        system.run(input, self).expect(system.name().deref()).run(self);
     }
     pub fn run_once<T, Out, Marker>(
         &mut self,
@@ -66,16 +68,16 @@ impl World {
         impl<S: System> Resource for ASystem<S> {}
         // don't forget to put back.
         if let Some(mut a_system) = self.remove_resource::<ASystem<T::System>>() {
-            let rv = a_system.0.run(input, self);
+            let rv = a_system.0.run(input, self).expect(a_system.0.name().deref());
             // put back.
             self.insert_resource(a_system);
-            return rv.unwrap();
+            return rv;
         }
         let mut system: T::System = crate::system::IntoSystem::into_system(system);
         System::initialize(&mut system, self);
-        let rv = system.run(input, self);
+        let rv = system.run(input, self).expect(system.name().deref());
         self.insert_resource(ASystem(system));
-        return rv.unwrap();
+        return rv;
     }
 }
 

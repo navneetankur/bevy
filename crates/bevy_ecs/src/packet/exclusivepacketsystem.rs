@@ -1,3 +1,5 @@
+use core::ops::Deref;
+
 use crate::{component::{Tick}, system::{ExclusiveFunctionSystem, ExclusiveSystemParamFunction, IntoSystem, IsExclusiveFunctionSystem, System, SystemIn}, world::{unsafe_world_cell::UnsafeWorldCell, World}};
 
 use super::{packetsystem::IntoPacketSystem, OptionPacket};
@@ -122,7 +124,7 @@ where
         input: SystemIn<'_, Self>,
         world: &mut World,
     ) -> Result<Self::Out, crate::system::RunSystemError> {
-        let out = <ExclusiveFunctionSystem<Marker, F::Out, F> as System>::run(&mut self.inner, input, world).unwrap();
+        let out = <ExclusiveFunctionSystem<Marker, F::Out, F> as System>::run(&mut self.inner, input, world).expect(self.inner.name().deref());
         out.run(world);
         return Ok(());
     }
