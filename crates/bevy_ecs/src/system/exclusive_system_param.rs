@@ -16,7 +16,7 @@ use variadics_please::all_tuples;
 )]
 pub trait ExclusiveSystemParam: Sized {
     /// Used to store data which persists across invocations of a system.
-    type State: Send + Sync + 'static;
+    type State: 'static;
     /// The item type returned when constructing this system param.
     /// See [`SystemParam::Item`].
     type Item<'s>: ExclusiveSystemParam<State = Self::State>;
@@ -62,7 +62,7 @@ impl<'a, P: SystemParam + 'static> ExclusiveSystemParam for &'a mut SystemState<
     }
 }
 
-impl<'_s, T: FromWorld + Send + 'static> ExclusiveSystemParam for Local<'_s, T> {
+impl<'_s, T: FromWorld + 'static> ExclusiveSystemParam for Local<'_s, T> {
     type State = SyncCell<T>;
     type Item<'s> = Local<'s, T>;
 

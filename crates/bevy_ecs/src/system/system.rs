@@ -45,7 +45,7 @@ bitflags! {
 /// It's possible to specify explicit execution order between specific systems,
 /// see [`IntoScheduleConfigs`](crate::schedule::IntoScheduleConfigs).
 #[diagnostic::on_unimplemented(message = "`{Self}` is not a system", label = "invalid system")]
-pub trait System: Send + Sync + 'static {
+pub trait System: 'static {
     /// The system's input.
     type In: SystemInput;
     /// The system's output.

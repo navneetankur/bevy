@@ -102,6 +102,7 @@ pub struct World {
     pub(crate) last_check_tick: Tick,
     pub(crate) last_trigger_id: u32,
     pub(crate) command_queue: RawCommandQueue,
+    pub(crate) extras: crate::additions::Extras,
 }
 
 impl Default for World {
@@ -123,6 +124,7 @@ impl Default for World {
             last_trigger_id: 0,
             command_queue: RawCommandQueue::new(),
             component_ids: ComponentIds::default(),
+            extras: Default::default(),
         };
         world.bootstrap();
         world

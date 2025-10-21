@@ -754,3 +754,8 @@ pub fn derive_from_world(input: TokenStream) -> TokenStream {
             }
     })
 }
+
+#[proc_macro_derive(Packet)]
+pub fn derive_packet(input: TokenStream) -> TokenStream {
+    component::derive_packet(input)
+}

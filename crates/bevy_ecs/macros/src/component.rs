@@ -20,7 +20,7 @@ pub fn derive_resource(input: TokenStream) -> TokenStream {
     ast.generics
         .make_where_clause()
         .predicates
-        .push(parse_quote! { Self: Send + Sync + 'static });
+        .push(parse_quote! { Self: 'static });
 
     let struct_name = &ast.ident;
     let (impl_generics, type_generics, where_clause) = &ast.generics.split_for_impl();
@@ -149,7 +149,7 @@ pub fn derive_component(input: TokenStream) -> TokenStream {
     ast.generics
         .make_where_clause()
         .predicates
-        .push(parse_quote! { Self: Send + Sync + 'static });
+        .push(parse_quote! { Self: 'static });
 
     let requires = &attrs.requires;
     let mut register_required = Vec::with_capacity(attrs.requires.iter().len());
@@ -866,4 +866,39 @@ fn relationship_field<'a>(
             format!("{derive} derive expected named or unnamed struct, found unit struct."),
         )),
     }
+}
+
+
+pub fn derive_packet(input: TokenStream) -> TokenStream {
+    let mut ast = parse_macro_input!(input as DeriveInput);
+    let bevy_ecs_path: Path = crate::bevy_ecs_path();
+
+    ast.generics
+        .make_where_clause();
+        // .predicates
+        // .push(parse_quote! { Self: Send + Sync + 'static });
+
+    let struct_name = &ast.ident;
+    let (impl_generics, type_generics, where_clause) = &ast.generics.split_for_impl();
+    let inner_generic = if type_generics.to_token_stream().is_empty() {
+        quote! {}
+    } else {
+        quote! {<'i>}
+    };
+
+    let ts = TokenStream::from(quote! {
+        impl #impl_generics #bevy_ecs_path::packet::Packet for #struct_name #type_generics #where_clause {
+            // fn run_systems(self: Box<Self>, world: &mut #bevy_ecs_path::world::World) {
+            //     #bevy_ecs_path::event::run_this_boxed_event_system::<Self>(self, world);
+            // }
+        }
+        impl #impl_generics #bevy_ecs_path::packet::SystemInput for #struct_name #type_generics {
+            type Param<'i> = #struct_name #inner_generic;
+            type Inner<'i> = #struct_name #inner_generic;
+            fn wrap(this: Self::Inner<'_>) -> Self::Param<'_> {
+                this
+            }
+        }
+    });
+    return ts;
 }

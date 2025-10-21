@@ -43,6 +43,7 @@ exclude = [
 ]
 
 [workspace.lints.clippy]
+needless_return = "allow"
 doc_markdown = "warn"
 manual_let_else = "warn"
 match_same_arms = "warn"
@@ -73,7 +74,7 @@ allow_attributes = "warn"
 allow_attributes_without_reason = "warn"
 
 [workspace.lints.rust]
-missing_docs = "warn"
+missing_docs = "allow"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs_dep)'] }
 unsafe_code = "deny"
 unsafe_op_in_unsafe_fn = "warn"
@@ -118,7 +119,7 @@ allow_attributes = "warn"
 allow_attributes_without_reason = "warn"
 
 [lints.rust]
-missing_docs = "warn"
+missing_docs = "allow"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs_dep)'] }
 unsafe_code = "deny"
 unsafe_op_in_unsafe_fn = "warn"

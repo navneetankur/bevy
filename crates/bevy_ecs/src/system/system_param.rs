@@ -217,7 +217,7 @@ use variadics_please::{all_tuples, all_tuples_enumerated};
 ///   on `system_meta`.
 pub unsafe trait SystemParam: Sized {
     /// Used to store data which persists across invocations of a system.
-    type State: Send + Sync + 'static;
+    type State: Sync + 'static;
 
     /// The item type returned when constructing this system param.
     /// The value of this associated type should be `Self`, instantiated with new lifetimes.
@@ -794,7 +794,7 @@ unsafe impl<'a, T: Resource> SystemParam for Res<'a, T> {
             Ok(())
         } else {
             Err(SystemParamValidationError::invalid::<Self>(
-                "Resource does not exist",
+                std::format!("Resource: {} does not exist", std::any::type_name::<T>()),
             ))
         }
     }
@@ -873,7 +873,7 @@ unsafe impl<'a, T: Resource> SystemParam for ResMut<'a, T> {
             Ok(())
         } else {
             Err(SystemParamValidationError::invalid::<Self>(
-                "Resource does not exist",
+                std::format!("Resource: {} does not exist", std::any::type_name::<T>()),
             ))
         }
     }
@@ -1045,12 +1045,12 @@ unsafe impl<'w> SystemParam for DeferredWorld<'w> {
 /// # assert_is_system(reset_to_system(Config(10)));
 /// ```
 #[derive(Debug)]
-pub struct Local<'s, T: FromWorld + Send + 'static>(pub(crate) &'s mut T);
+pub struct Local<'s, T: FromWorld + 'static>(pub(crate) &'s mut T);
 
 // SAFETY: Local only accesses internal state
-unsafe impl<'s, T: FromWorld + Send + 'static> ReadOnlySystemParam for Local<'s, T> {}
+unsafe impl<'s, T: FromWorld + 'static> ReadOnlySystemParam for Local<'s, T> {}
 
-impl<'s, T: FromWorld + Send + 'static> Deref for Local<'s, T> {
+impl<'s, T: FromWorld + 'static> Deref for Local<'s, T> {
     type Target = T;
 
     #[inline]
@@ -1059,14 +1059,14 @@ impl<'s, T: FromWorld + Send + 'static> Deref for Local<'s, T> {
     }
 }
 
-impl<'s, T: FromWorld + Send + 'static> DerefMut for Local<'s, T> {
+impl<'s, T: FromWorld + 'static> DerefMut for Local<'s, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.0
     }
 }
 
-impl<'s, 'a, T: FromWorld + Send + 'static> IntoIterator for &'a Local<'s, T>
+impl<'s, 'a, T: FromWorld + 'static> IntoIterator for &'a Local<'s, T>
 where
     &'a T: IntoIterator,
 {
@@ -1078,7 +1078,7 @@ where
     }
 }
 
-impl<'s, 'a, T: FromWorld + Send + 'static> IntoIterator for &'a mut Local<'s, T>
+impl<'s, 'a, T: FromWorld + 'static> IntoIterator for &'a mut Local<'s, T>
 where
     &'a mut T: IntoIterator,
 {
@@ -1091,7 +1091,7 @@ where
 }
 
 // SAFETY: only local state is accessed
-unsafe impl<'a, T: FromWorld + Send + 'static> SystemParam for Local<'a, T> {
+unsafe impl<'a, T: FromWorld + 'static> SystemParam for Local<'a, T> {
     type State = SyncCell<T>;
     type Item<'w, 's> = Local<'s, T>;
 
@@ -1124,7 +1124,7 @@ unsafe impl<'a, T: FromWorld + Send + 'static> SystemParam for Local<'a, T> {
 /// Types that implement `SystemBuffer` should take care to perform as many
 /// computations up-front as possible. Buffers cannot be applied in parallel,
 /// so you should try to minimize the time spent in [`SystemBuffer::apply`].
-pub trait SystemBuffer: FromWorld + Send + 'static {
+pub trait SystemBuffer: FromWorld + 'static {
     /// Applies any deferred mutations to the [`World`].
     fn apply(&mut self, system_meta: &SystemMeta, world: &mut World);
     /// Queues any deferred mutations to be applied at the next [`ApplyDeferred`](crate::prelude::ApplyDeferred).
@@ -2551,7 +2551,7 @@ impl DynSystemParamState {
 }
 
 /// Allows a [`SystemParam::State`] to be used as a trait object for implementing [`DynSystemParam`].
-trait DynParamState: Sync + Send + Any {
+trait DynParamState: Sync + Any {
     /// Applies any deferred mutations stored in this [`SystemParam`]'s state.
     /// This is used to apply [`Commands`] during [`ApplyDeferred`](crate::prelude::ApplyDeferred).
     ///

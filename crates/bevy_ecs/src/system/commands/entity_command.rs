@@ -78,7 +78,7 @@ use bevy_ptr::{move_as_ptr, OwningPtr};
 ///     assert_eq!(names, HashSet::from_iter(["Entity #0", "Entity #1"]));
 /// }
 /// ```
-pub trait EntityCommand<Out = ()>: Send + 'static {
+pub trait EntityCommand<Out = ()>: 'static {
     /// Executes this command for the given [`Entity`].
     fn apply(self, entity: EntityWorldMut) -> Out;
 }
@@ -96,7 +96,7 @@ pub enum EntityCommandError<E> {
 
 impl<Out, F> EntityCommand<Out> for F
 where
-    F: FnOnce(EntityWorldMut) -> Out + Send + 'static,
+    F: FnOnce(EntityWorldMut) -> Out + 'static,
 {
     fn apply(self, entity: EntityWorldMut) -> Out {
         self(entity)

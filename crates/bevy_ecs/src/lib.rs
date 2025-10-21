@@ -29,6 +29,8 @@ extern crate alloc;
 // Required to make proc macros work in bevy itself.
 extern crate self as bevy_ecs;
 
+pub mod packet;
+pub mod additions;
 pub mod archetype;
 pub mod batching;
 pub mod bundle;

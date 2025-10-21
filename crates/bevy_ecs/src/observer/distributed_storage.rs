@@ -506,7 +506,7 @@ impl Component for ObservedBy {
     }
 }
 
-pub(crate) trait AnyNamedSystem: Any + Send + Sync + 'static {
+pub(crate) trait AnyNamedSystem: Any + 'static {
     fn system_name(&self) -> DebugName;
 }
 
