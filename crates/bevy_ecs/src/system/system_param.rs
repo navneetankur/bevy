@@ -794,7 +794,7 @@ unsafe impl<'a, T: Resource> SystemParam for Res<'a, T> {
             Ok(())
         } else {
             Err(SystemParamValidationError::invalid::<Self>(
-                std::format!("Resource: {} does not exist", std::any::type_name::<T>()),
+                "Resource does not exist",
             ))
         }
     }
@@ -873,7 +873,7 @@ unsafe impl<'a, T: Resource> SystemParam for ResMut<'a, T> {
             Ok(())
         } else {
             Err(SystemParamValidationError::invalid::<Self>(
-                std::format!("Resource: {} does not exist", std::any::type_name::<T>()),
+                "Resource does not exist",
             ))
         }
     }

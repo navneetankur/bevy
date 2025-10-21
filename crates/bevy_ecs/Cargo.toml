@@ -64,6 +64,7 @@ std = [
   "bevy_reflect?/std",
   "bevy_utils/parallel",
   "bevy_utils/std",
+  "bevy_utils/debug",
   "bitflags/std",
   "concurrent-queue/std",
   "fixedbitset/std",
