@@ -61,7 +61,7 @@ unsafe impl<'w> SystemParam for WCommands<'w,'_> {
         system_meta: &crate::system::SystemMeta,
         world: crate::world::unsafe_world_cell::UnsafeWorldCell,
     ) -> Result<(), crate::system::SystemParamValidationError> {
-       <ResMut<'w, Internal> as SystemParam>::validate_param(state, system_meta, world)
+       Ok(())
     }
 }
 
